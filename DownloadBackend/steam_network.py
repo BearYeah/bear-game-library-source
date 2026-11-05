@@ -53,7 +53,7 @@ class AddressAdapter(HTTPAdapter):
 
 
 class SteamHTTP:
-    def __init__(self, route_file='', proxy='', user_agent='BearLibrary', local_sni=True):
+    def __init__(self, route_file='', proxy='', user_agent='BearLibrary', local_sni=True, direct=False):
         self.proxy = proxy
         self.user_agent = user_agent
         self.local = threading.local()
@@ -61,6 +61,7 @@ class SteamHTTP:
         self.sni_hosts = set()
         self.sni_unavailable = set()
         self.local_sni = local_sni
+        self.direct = direct
         self.routes = {}
         if route_file and Path(route_file).is_file():
             self.routes = json.loads(Path(route_file).read_text(encoding='utf-8'))['Hosts']
@@ -72,6 +73,8 @@ class SteamHTTP:
             self.local.sni = requests.Session()
             for session in (self.local.normal, self.local.routed, self.local.sni):
                 session.headers['User-Agent'] = self.user_agent
+                if self.direct:
+                    session.trust_env = False
                 if self.proxy:
                     session.proxies.update(http=self.proxy, https=self.proxy)
             self.local.sni.mount('https://', AddressAdapter(None, suppress_sni=True))
@@ -81,22 +84,22 @@ class SteamHTTP:
                     self.local.sni.mount('https://' + host + '/', AddressAdapter(address, suppress_sni=True))
         return self.local.normal, self.local.routed
 
-    def get(self, url, timeout):
+    def get(self, url, timeout, stream=False):
         normal, routed = self.sessions()
         host = urlsplit(url).hostname
-        direct = not self.proxy and not select_proxy(url, get_environ_proxies(url))
+        direct = self.direct or (not self.proxy and not select_proxy(url, get_environ_proxies(url)))
         if direct and host in self.sni_hosts:
-            return self.local.sni.get(url, timeout=timeout)
+            return self.local.sni.get(url, timeout=timeout, stream=stream)
         if direct and host in self.routed_hosts:
-            return routed.get(url, timeout=timeout)
+            return routed.get(url, timeout=timeout, stream=stream)
         try:
-            return normal.get(url, timeout=timeout)
+            return normal.get(url, timeout=timeout, stream=stream)
         except (requests.ConnectionError, requests.Timeout):
-            if not direct:
+            if not direct or urlsplit(url).scheme != 'https':
                 raise
             if self.local_sni and steam_host(host) and host not in self.sni_unavailable:
                 try:
-                    response = self.local.sni.get(url, timeout=timeout)
+                    response = self.local.sni.get(url, timeout=timeout, stream=stream)
                 except (requests.ConnectionError, requests.Timeout):
                     self.sni_unavailable.add(host)
                 else:
@@ -105,7 +108,7 @@ class SteamHTTP:
                     return response
             if host not in self.routes:
                 raise
-            response = routed.get(url, timeout=timeout)
+            response = routed.get(url, timeout=timeout, stream=stream)
             if response.ok:
                 self.routed_hosts.add(host)
             return response

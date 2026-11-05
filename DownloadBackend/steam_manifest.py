@@ -260,48 +260,41 @@ def _symmetric_decrypt(key, ct):
         pt = pt[:-pad]
     return pt
 
-def fetch_chunk(depot, sha_hex, code, key_hex, timeout=12):
-    """取一个 chunk 并解出明文内容。
+chunk_fetch = None
 
-    2026 版 CDN 的 chunk 路径**不带 request code**：/depot/<depot>/chunk/<sha>
-    （带 code 的老路径一律 404，实测 manifest 才需要 code）。
-    """
+
+def decode_chunk(data, key_hex):
+    if key_hex:
+        plain = _symmetric_decrypt(_depot_key_bytes(key_hex), data)
+    else:
+        plain = data
+    if plain[:4] == b'PK\x03\x04':
+        with zipfile.ZipFile(io.BytesIO(plain)) as archive:
+            return archive.read('z' if 'z' in archive.namelist() else archive.namelist()[0])
+    if not key_hex:
+        raise RuntimeError('没有 depot key，无法解密内容块。')
+    return _vz_decompress(plain)
+
+
+def fetch_chunk(depot, sha_hex, code, key_hex, timeout=12):
+    if chunk_fetch is not None:
+        data, host = chunk_fetch(depot, sha_hex, timeout)
+        return decode_chunk(data, key_hex), host
     errs = []
     first = host_pick()
     for host in [first] + [candidate for candidate in cdn_order() if candidate != first]:
-        url = 'https://%s/depot/%d/chunk/%s' % (host, depot, sha_hex)
         try:
-            data = http_get(url, timeout=timeout, retries=1, raw=True)
-        except Exception as e:
-            errs.append('%s: %s' % (host, str(e)[:60]))
+            data = http_get('https://%s/depot/%d/chunk/%s' % (host, depot, sha_hex),
+                            timeout=timeout, retries=1, raw=True)
+            plain = decode_chunk(data, key_hex)
+        except Exception as error:
+            errs.append('%s: %s' % (host, str(error)[:60]))
             _host_bad[host] = _host_bad.get(host, 0) + 1
             continue
-        if not key_hex:
-            if data[:4] == b'PK\x03\x04':
-                zf = zipfile.ZipFile(io.BytesIO(data))
-                _host_ok[host] = _host_ok.get(host, 0) + 1
-                return (zf.read('z' if 'z' in zf.namelist() else zf.namelist()[0]), host)
-            errs.append('%s: 没有 depot key，chunk 是密文' % host)
-            break
-        try:
-            plain = _symmetric_decrypt(_depot_key_bytes(key_hex), data)
-        except Exception as e:
-            errs.append('%s: 解密 %s' % (host, str(e)[:50]))
-            continue
         _host_ok[host] = _host_ok.get(host, 0) + 1
-        if plain[:4] == b'PK\x03\x04':
-            zf = zipfile.ZipFile(io.BytesIO(plain))
-            return (zf.read('z' if 'z' in zf.namelist() else zf.namelist()[0]), host)
-        try:
-            return (_vz_decompress(plain), host)
-        except Exception as e:
-            errs.append('%s: 解包 %s' % (host, str(e)[:50]))
-            continue
+        return plain, host
     raise RuntimeError('chunk %s@%d 取不到 (%s)' % (sha_hex, depot, ' | '.join(errs[:4])))
-GL_POOL_DEFAULT = 480
 
-def gids_live(appid):
-    return None
 
 def _local_metadata_file(name):
     from pathlib import Path

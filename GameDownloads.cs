@@ -7,6 +7,7 @@ public sealed class DownloadUpdate {
  public string Event {get;set;}="";public string Message {get;set;}="";public string Directory {get;set;}="";
  public string Phase {get;set;}="";
  public double Completed {get;set;}public double Total {get;set;}public double Speed {get;set;}public bool Committing {get;set;}public bool Paused {get;set;}public int Depots {get;set;}
+ public int Connections {get;set;}
 }
 public static class GameDownloadPaths {
  public static string CommonDirectory(string input){
@@ -16,7 +17,7 @@ public static class GameDownloadPaths {
  }
  public static string LibraryRoot(string input)=>Path.GetDirectoryName(Path.GetDirectoryName(CommonDirectory(input)))!;
 }
-public sealed record GameDownloadRequest(uint AppId,string Name,string Steam,string Library,string Language,int Jobs,string Proxy,bool LocalSni=true);
+public sealed record GameDownloadRequest(uint AppId,string Name,string Steam,string Library,string Language,int Jobs,string Proxy,bool LocalSni=true,bool DownloadUseProxy=false);
 public sealed class GameDownloadService(Storage storage) {
  static readonly JsonSerializerOptions EventJson=new(){PropertyNameCaseInsensitive=true};
  string Folder(uint appid)=>Path.Combine(storage.Root,"downloads",appid.ToString());
@@ -54,7 +55,7 @@ public sealed class GameDownloadService(Storage storage) {
  public async Task<string> Run(GameDownloadRequest request,IProgress<DownloadUpdate> progress,CancellationToken ct){
   var folder=Folder(request.AppId);System.IO.Directory.CreateDirectory(folder);var job=Path.Combine(folder,"job.json");var status=Path.Combine(folder,"status.json");var saved=SavedProgress(request.AppId);
   await new SteamNetworkRoutes(storage,new Settings{Proxy=request.Proxy}).Refresh(ct);
-  await File.WriteAllTextAsync(job,JsonSerializer.Serialize(new{appid=request.AppId,name=request.Name,steam=request.Steam,library=request.Library,language=request.Language,jobs=request.Jobs,resume=true,cache=Path.Combine(storage.Root,"downloads","cache"),state=Path.Combine(folder,"chunks.json"),network_routes=SteamNetworkRoutes.CacheFile(storage),local_sni=request.LocalSni}),ct);
+  await File.WriteAllTextAsync(job,JsonSerializer.Serialize(new{appid=request.AppId,name=request.Name,steam=request.Steam,library=request.Library,language=request.Language,jobs=request.Jobs,download_proxy=request.DownloadUseProxy?"inherit":"direct",resume=true,cache=Path.Combine(storage.Root,"downloads","cache"),state=Path.Combine(folder,"chunks.json"),network_routes=SteamNetworkRoutes.CacheFile(storage),local_sni=request.LocalSni}),ct);
   var worker=await Task.Run(Worker,ct);ct.ThrowIfCancellationRequested();using var process=new Process{StartInfo=Command(worker,job,request.Proxy)};process.Start();
   using var cancellation=ct.Register(()=>{try{process.Kill(entireProcessTree:true);}catch(InvalidOperationException){}});
   var errorOutput=process.StandardError.ReadToEndAsync();string directory="",failure="";bool complete=false;
@@ -63,7 +64,7 @@ public sealed class GameDownloadService(Storage storage) {
     var update=JsonSerializer.Deserialize<DownloadUpdate>(line,EventJson)!;
     if(update.Event=="error")failure=update.Message;if(update.Directory.Length>0){directory=update.Directory;saved.Directory=directory;}
     if(update.Message.Length>0)saved.Message=update.Message;if(update.Phase.Length>0)saved.Phase=update.Phase;
-    if(update.Event=="progress"){saved.Completed=update.Completed;saved.Total=update.Total;saved.Speed=update.Speed;}
+    if(update.Event=="progress"){saved.Completed=update.Completed;saved.Total=update.Total;saved.Speed=update.Speed;saved.Connections=update.Connections;}
     if(update.Event=="complete")complete=true;saved.Event=update.Event;saved.Paused=false;
     File.WriteAllText(status,JsonSerializer.Serialize(saved));progress.Report(update);
    }

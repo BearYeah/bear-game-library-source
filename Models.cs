@@ -42,6 +42,7 @@ public class Settings {
  public int CoverLimitMb {get;set;}=200;
  public string DownloadLibrary {get;set;}="";
  public string DownloadLanguage {get;set;}="schinese";
+ public bool DownloadUseProxy {get;set;}=false;
  public bool Motion {get;set;}=true;
  public bool AutoCheckUpdates {get;set;}=false;
  public bool AutoDownloadUpdates {get;set;}=false;

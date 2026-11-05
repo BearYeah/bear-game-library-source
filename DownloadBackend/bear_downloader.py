@@ -19,6 +19,7 @@ import steam_manifest as core
 from download_catalog import select_depots, supplement_depots
 from bear_cache_client import BearCache, CacheUnavailable, DailyLimit, DEFAULT_SERVER
 from steam_network import SteamHTTP
+from steam_cdn import discover, ContentPool, TransferMeter, AdaptiveConcurrency
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
@@ -32,24 +33,54 @@ def emit(event, **data):
         print(json.dumps(dict(event=event, **data), ensure_ascii=False), flush=True)
 
 
-def configure_network(proxy, route_file='', local_sni=True):
-    client = SteamHTTP(route_file, proxy, core.UA, local_sni)
+transfer_meter = None
+content_get = None
 
-    def get(url, timeout=30, retries=2, raw=False):
+
+def configure_network(proxy, route_file='', local_sni=True, download_proxy='direct'):
+    global transfer_meter, content_get
+    client = SteamHTTP(route_file, proxy, core.UA, local_sni)
+    content = SteamHTTP(route_file, proxy if download_proxy == 'inherit' else '', core.UA,
+                        local_sni, direct=download_proxy == 'direct')
+    transfer_meter = TransferMeter()
+
+    def request(transport, url, timeout=30, retries=2, raw=False):
+        chunk = '/chunk/' in url
         for attempt in range(retries):
             try:
-                response = client.get(url, timeout=(min(timeout, 5), timeout))
-                if response.status_code >= 400:
-                    raise urllib.error.HTTPError(url, response.status_code,
-                                                 response.reason, {}, None)
-                return response.content if raw else response.content.decode("utf-8", "replace")
+                with transport.get(url, timeout=(min(timeout, 3 if chunk else 5), timeout), stream=chunk) as response:
+                    if response.status_code >= 400:
+                        raise urllib.error.HTTPError(url, response.status_code,
+                                                     response.reason, {}, None)
+                    if chunk:
+                        parts = []
+                        for part in response.iter_content(65536):
+                            transfer_meter.add(len(part))
+                            parts.append(part)
+                        return b''.join(parts)
+                    return response.content if raw else response.content.decode("utf-8", "replace")
             except urllib.error.HTTPError:
                 raise
             except requests.RequestException:
                 if attempt + 1 == retries:
                     raise
                 time.sleep(0.8)
+    def get(url, **kwargs):
+        return request(content if '/chunk/' in url else client, url, **kwargs)
+
+    content_get = lambda url, **kwargs: request(content, url, **kwargs)
     core.http_get = get
+
+
+def configure_content(job):
+    emit('stage', phase='nodes', message='正在选择适合当前网络的内容节点…')
+    try:
+        nodes = discover(content_get, job['steam'], job['appid'])
+    except (requests.RequestException, urllib.error.URLError, ValueError, KeyError):
+        nodes = []
+    pool = ContentPool(nodes, ['https://'+host for host in core.CDN_HOSTS], content_get)
+    core.chunk_fetch = pool.fetch
+    emit('stage', phase='nodes', message='内容连接已就绪 · '+('游戏内容直连' if job.get('download_proxy', 'direct') == 'direct' else '游戏内容跟随代理设置'))
 
 
 def read_vdf(text):
@@ -282,6 +313,7 @@ def save_state(file, state):
 
 
 def download_plan(plan, state_file, jobs):
+    concurrency = AdaptiveConcurrency(jobs)
     root = plan["destination"]
     root.mkdir(parents=True, exist_ok=True)
     identity = dict(path=str(root), depots={str(d): row["gid"] for d, row in plan["depots"].items()})
@@ -334,14 +366,16 @@ def download_plan(plan, state_file, jobs):
     journal = journal_file.open("a", encoding="utf-8", buffering=1)
 
     stop_progress = threading.Event()
-    previous = [time.monotonic(), done_bytes]
+    previous = [time.monotonic(), transfer_meter.read() if transfer_meter else done_bytes]
     phase = "files"
 
     def progress():
         now = time.monotonic()
-        speed = (done_bytes - previous[1]) / max(now - previous[0], 0.001)
-        previous[:] = [now, done_bytes]
-        emit("progress", phase=phase, completed=done_bytes, total=total, speed=speed)
+        received = transfer_meter.read() if transfer_meter else done_bytes
+        speed = (received - previous[1]) / max(now - previous[0], 0.001)
+        previous[:] = [now, received]
+        emit("progress", phase=phase, completed=done_bytes, total=total, speed=speed,
+             connections=concurrency.limit)
 
     def report_progress():
         while not stop_progress.wait(1):
@@ -358,7 +392,7 @@ def download_plan(plan, state_file, jobs):
     progress()
     reporter = threading.Thread(target=report_progress, daemon=True)
     reporter.start()
-    with futures.ThreadPoolExecutor(max_workers=jobs) as executor:
+    with futures.ThreadPoolExecutor(max_workers=concurrency.maximum) as executor:
         active = set()
         try:
             # Preserve depot layering: language/shared files can replace a base file.
@@ -371,13 +405,13 @@ def download_plan(plan, state_file, jobs):
                 phase = "transfer"
                 emit("stage", phase=phase, message="正在下载游戏文件…")
                 pending_tasks = iter(t for t in tasks if t[0] not in completed)
-                for _ in range(jobs * 2):
+                for _ in range(concurrency.limit):
                     task = next(pending_tasks, None)
                     if task is None:
                         break
                     active.add(executor.submit(work, task))
                 while active:
-                    ready, active = futures.wait(active, return_when=futures.FIRST_COMPLETED)
+                    ready, active = futures.wait(active, timeout=0.25, return_when=futures.FIRST_COMPLETED)
                     for future in ready:
                         task, body = future.result()
                         key, _, _, target, chunk = task
@@ -396,9 +430,14 @@ def download_plan(plan, state_file, jobs):
                         journal.flush()
                         completed.add(key)
                         done_bytes += len(body)
+                    received = transfer_meter.read() if transfer_meter else done_bytes-resumed
+                    concurrency.observe(received)
+                    while len(active) < concurrency.limit:
                         following = next(pending_tasks, None)
                         if following is not None:
                             active.add(executor.submit(work, following))
+                        else:
+                            break
                 # Empty files/directories need no network transfer.
                 for target, file in files:
                     if file["flags"] & 64:
@@ -499,10 +538,11 @@ def main():
         return download_tests.run(args.self_test)
     job = json.loads(Path(args.job).read_text(encoding="utf-8-sig"))
     os.environ["BEAR_DOWNLOAD_CACHE"] = job["cache"]
-    configure_network(os.environ.get("BEAR_DOWNLOAD_PROXY", ""), job.get('network_routes', ''), job.get('local_sni', True))
+    configure_network(os.environ.get("BEAR_DOWNLOAD_PROXY", ""), job.get('network_routes', ''), job.get('local_sni', True), job.get('download_proxy', 'direct'))
     try:
         plan = cached_plan(job)
         emit("plan", name=plan["name"], directory=str(plan["destination"]), depots=len(plan["depots"]))
+        configure_content(job)
         download_plan(plan, Path(job["state"]), job["jobs"])
         register_install(job, plan)
         return 0

@@ -11,8 +11,9 @@
    <Grid Margin="0,8,0,15"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><ComboBox x:Name="LibraryBox" IsEditable="True" LostFocus="CommonPathChanged"/><Button Grid.Column="1" Content="选择目录" Click="BrowseLibrary" Margin="8,0,0,0"/></Grid>
    <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="18"/><ColumnDefinition/></Grid.ColumnDefinitions>
     <StackPanel><TextBlock Text="游戏语言" FontSize="12" Margin="0,0,0,7"/><ComboBox x:Name="LanguageBox" SelectedIndex="0"><ComboBoxItem Content="简体中文" Tag="schinese"/><ComboBoxItem Content="English" Tag="english"/><ComboBoxItem Content="繁體中文" Tag="tchinese"/><ComboBoxItem Content="日本語" Tag="japanese"/></ComboBox></StackPanel>
-    <StackPanel Grid.Column="2"><TextBlock Text="并发下载数" FontSize="12" Margin="0,0,0,7"/><ComboBox x:Name="JobsBox" SelectedIndex="2"><ComboBoxItem Content="4"/><ComboBoxItem Content="12"/><ComboBoxItem Content="24"/><ComboBoxItem Content="32"/></ComboBox></StackPanel>
+    <StackPanel Grid.Column="2"><TextBlock Text="并发下载数" FontSize="12" Margin="0,0,0,7"/><ComboBox x:Name="JobsBox" SelectedIndex="0"><ComboBoxItem Content="自动（8–32）" Tag="0"/><ComboBoxItem Content="4" Tag="4"/><ComboBoxItem Content="12" Tag="12"/><ComboBoxItem Content="24" Tag="24"/><ComboBoxItem Content="32" Tag="32"/></ComboBox></StackPanel>
    </Grid>
+   <Grid Margin="0,12,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition/></Grid.ColumnDefinitions><TextBlock Text="游戏内容连接" FontSize="12" VerticalAlignment="Center" Margin="0,0,14,0"/><ComboBox x:Name="TransferProxyBox" Grid.Column="1" SelectedIndex="0"><ComboBoxItem Content="直连 Steam 内容节点（推荐）" Tag="direct"/><ComboBoxItem Content="跟随设置中的代理" Tag="inherit"/></ComboBox></Grid>
    <TextBlock x:Name="InstallPathHint" Text="" Foreground="#7DE7FF" FontSize="11" Margin="0,10,0,0"/>
    <TextBlock Text="下载前请退出 Steam。完成后自动登记为已安装，重新打开 Steam 查看。缺少所选语言时使用英语内容。" Foreground="#8F9DB3" FontSize="11" Margin="0,13,0,0"/>
   </StackPanel>

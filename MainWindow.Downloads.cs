@@ -52,7 +52,7 @@ public partial class MainWindow {
   var row=DownloadRow(game);var service=new GameDownloadService(storage);row.Set(service.Status(game.AppId),false);
   var dialog=new DownloadWindow(storage,library.Settings,game,()=>{Bookmark(game);SaveLocal();}){Owner=this};downloadWindows.Add(game.AppId,dialog);
   dialog.DownloadStarted+=()=>{row.Set(service.Status(game.AppId),true);ChangeView("downloads");dialog.Hide();};
-  dialog.DownloadEvent+=update=>{var saved=row.Update;if(update.Total>0){saved.Completed=update.Completed;saved.Total=update.Total;saved.Speed=update.Speed;}if(update.Directory.Length>0)saved.Directory=update.Directory;saved.Event=update.Event;if(update.Message.Length>0)saved.Message=update.Message;if(update.Phase.Length>0)saved.Phase=update.Phase;row.Set(saved,true,dialog.IsCommitting);};
+  dialog.DownloadEvent+=update=>{var saved=row.Update;if(update.Total>0){saved.Completed=update.Completed;saved.Total=update.Total;saved.Speed=update.Speed;saved.Connections=update.Connections;}if(update.Directory.Length>0)saved.Directory=update.Directory;saved.Event=update.Event;if(update.Message.Length>0)saved.Message=update.Message;if(update.Phase.Length>0)saved.Phase=update.Phase;row.Set(saved,true,dialog.IsCommitting);};
   dialog.DownloadStopped+=()=>{row.Set(service.Status(game.AppId),false);if(dialog.InstalledDirectory.Length>0){RefreshCards();Notify($"{game.Name} 下载完成，已写入 Steam 安装记录。");}UpdateDownloadsSummary();};
   dialog.DeleteRequested+=async()=>await RemoveDownload(row);
   dialog.Closed+=(_,_)=>{downloadWindows.Remove(game.AppId);row.Set(service.Status(game.AppId),false);UpdateDownloadsSummary();if(selected?.AppId==game.AppId)ShowSelected();};
