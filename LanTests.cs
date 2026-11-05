@@ -6,7 +6,8 @@ using System.Windows.Controls;
 namespace NovaLibrary;
 public static class LanTests {
  public static int LaunchChild(string output){File.WriteAllText(output,JsonSerializer.Serialize(new{appid=Environment.GetEnvironmentVariable("SteamAppId"),gameid=Environment.GetEnvironmentVariable("SteamGameId"),directory=Environment.CurrentDirectory}));return 0;}
- public static async Task<int> DownloadCore(string output){try{var storage=new Storage(output);var core=new LanCoreService(storage,new Settings());await core.Download(new Progress<string>(_=>{}),CancellationToken.None);File.WriteAllText(Path.Combine(output,"core-download.json"),JsonSerializer.Serialize(new{result="pass",version=LanCoreService.Version,api=File.Exists(Path.Combine(core.Current,"regular","x64","steam_api64.dll")),lobbyTool=File.Exists(Path.Combine(core.Current,"tools","lobby_connect","lobby_connect_x64.exe"))}));return 0;}catch(Exception error){File.WriteAllText(Path.Combine(output,"core-download.json"),JsonSerializer.Serialize(new{result="fail",error=error.ToString()}));return 1;}}
+ public static async Task<int> PrepareCore(string output){try{var storage=new Storage(output);var core=new LanCoreService(storage);await core.Prepare(CancellationToken.None);var api=Path.Combine(core.Current,"regular","x64","steam_api64.dll");var first=File.GetLastWriteTimeUtc(api);await core.Prepare(CancellationToken.None);File.WriteAllText(Path.Combine(output,"core-prepare.json"),JsonSerializer.Serialize(new{result="pass",version=LanCoreService.Version,api=File.Exists(api),lobbyTool=File.Exists(Path.Combine(core.Current,"tools","lobby_connect","lobby_connect_x64.exe")),reused=first==File.GetLastWriteTimeUtc(api),scope="embedded core preparation with no network request"}));return 0;}catch(Exception error){File.WriteAllText(Path.Combine(output,"core-prepare.json"),JsonSerializer.Serialize(new{result="fail",error=error.ToString()}));return 1;}}
+
  public static int Run(string output,string core){
   Directory.CreateDirectory(output);var checks=new List<string>();void Check(bool value,string name){if(!value)throw new InvalidOperationException(name);checks.Add(name);}
   try{
@@ -14,7 +15,7 @@ public static class LanTests {
    Check(profile.PlayerId==service.Load(new GameItem{AppId=123,Name="Other"},settings).PlayerId,"one local player identity is shared across game profiles");
    var gameDir=Path.Combine(output,"fixture-game");Directory.CreateDirectory(gameDir);profile.Executable=Path.Combine(gameDir,"Stardew Valley.exe");File.WriteAllText(profile.Executable,"Fixture placeholder, never executed.");profile.ApiFile=Path.Combine(gameDir,"steam_api64.dll");var original=File.ReadAllBytes(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System),"version.dll"));File.WriteAllBytes(profile.ApiFile,original);
    Directory.CreateDirectory(Path.Combine(gameDir,"steam_settings"));var user=Path.Combine(gameDir,"steam_settings","configs.user.ini");File.WriteAllText(user,"original user configuration");File.WriteAllText(Path.Combine(gameDir,"neighbor.txt"),"keep");profile.Peers="127.0.0.1:47652";service.Save(profile);
-   var selector=new LanCoreService(storage,settings);selector.Select(core);var app=new Application{ShutdownMode=ShutdownMode.OnExplicitShutdown};var window=new LanWindow(storage,settings,game);
+   var selector=new LanCoreService(storage);selector.Select(core);var app=new Application{ShutdownMode=ShutdownMode.OnExplicitShutdown};var window=new LanWindow(storage,settings,game);
    try{
     ((TextBox)window.FindName("NicknameBox")).Text="Bear 联机测试";
     ((Button)window.FindName("ApplyButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));

@@ -17,6 +17,6 @@ Watt Toolkit 与 SteamHostSync 是网络设计或地址提示的参考项目，�
 
 Steam、游戏名称与第三方标识属于相应权利人。游戏文件、清单、密钥、资料包和补丁二进制不包含在本仓库的 GPL 授权内容中。本仓库的应用图标与像素页面插画随项目分发。
 
-局域网联机使用可选的 Goldberg Steam Emulator 核心（LGPL-3.0）。核心单独下载或由使用者导入，可替换；当前对应源码为 https://github.com/Detanup01/gbe_fork/tree/release-2026_09_27 。许可证正文见 Assets/LGPL-3.0.txt，GNU GPL 正文见 LICENSE。
+局域网联机使用可选的 Goldberg Steam Emulator 核心（LGPL-3.0）。固定版本核心在构建时获取并内置，运行时释放为可替换文件，也可由使用者导入其他版本；当前对应源码为 https://github.com/Detanup01/gbe_fork/tree/release-2026_09_27 。许可证正文见 Assets/LGPL-3.0.txt，GNU GPL 正文见 LICENSE。
 
-SmartGoldbergEmu（LGPL-3.0-or-later）仅作为配置和启动交互的设计参考，本次没有复制其启动器代码。按需下载的 7zr 来自 7-Zip 官方公共领域 SDK；源码见 https://www.7-zip.org/sdk.html 。本仓库不附带这些预编译第三方核心或工具。
+SmartGoldbergEmu（LGPL-3.0-or-later）仅作为配置和启动交互的设计参考，本次没有复制其启动器代码。构建阶段按需获取的 7zr 来自 7-Zip 官方公共领域 SDK；源码见 https://www.7-zip.org/sdk.html 。Git 源码不附带这些预编译核心或工具；发行 EXE 会包含固定版本核心，其对应源码和许可证随发行提供。

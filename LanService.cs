@@ -2,7 +2,6 @@ using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using Microsoft.Win32;
 namespace NovaLibrary;
 
 public sealed class LanProfile {
@@ -96,43 +95,23 @@ public sealed class LanService(Storage storage) {
  }
 }
 
-public sealed class LanCoreService(Storage storage,Settings settings) {
+public sealed class LanCoreService(Storage storage) {
  public const string Version="release-2026_09_27";
- public const string Repository="Detanup01/gbe_fork";
  public const string SourceUrl="https://github.com/Detanup01/gbe_fork/tree/"+Version;
- const string Digest="300186c34f49a9ea75b33ce2af299267cc1dad0225cf45e81a229578d4e11c85";
  string Selection=>Path.Combine(storage.Root,"lan","core-path.txt");
- public string Current=>File.Exists(Selection)?File.ReadAllText(Selection):Path.Combine(storage.Root,"lan","core",Version,"release");
- public void Select(string folder){if(Directory.Exists(Path.Combine(folder,"release")))folder=Path.Combine(folder,"release");if(!File.Exists(Path.Combine(folder,"regular","x64","steam_api64.dll")))throw new InvalidOperationException("请选择含 regular、experimental、tools 的完整 release 文件夹。");Directory.CreateDirectory(Path.GetDirectoryName(Selection)!);File.WriteAllText(Selection,Path.GetFullPath(folder));}
- public async Task Download(IProgress<string> progress,CancellationToken ct,bool useProxy=false){
-  var folder=Path.Combine(storage.Root,"lan","core",Version);Directory.CreateDirectory(folder);var archive=Path.Combine(folder,"core.7z");
-  try{
-   progress.Report("正在下载官方联机核心…");await Fetch($"https://github.com/{Repository}/releases/download/{Version}/emu-win-release-vs22.7z",archive,32*1024*1024,ct,progress,useProxy);
-   if(!SafeFiles.HashFile(archive).Equals(Digest,StringComparison.OrdinalIgnoreCase))throw new InvalidDataException("联机核心下载不完整，请重新获取。");
-   var seven=FindExtractor();if(seven==null){seven=Path.Combine(storage.Root,"lan","tools","7zr.exe");if(!File.Exists(seven)){Directory.CreateDirectory(Path.GetDirectoryName(seven)!);progress.Report("正在获取 7-Zip 官方解包组件…");await Fetch("https://www.7-zip.org/a/7zr.exe",seven,4*1024*1024,ct,useProxy:useProxy);}}
-   progress.Report("正在解压联机核心…");await Run(seven,["x","-y","-o"+folder,archive,"release/regular/*","release/experimental/*","release/tools/lobby_connect/*","release/tools/generate_interfaces/*","release/README.release.md"],ct);Select(Path.Combine(folder,"release"));
-   File.WriteAllText(Path.Combine(folder,"SOURCE.txt"),"Goldberg Steam Emulator\nLGPL-3.0\nCorresponding source: "+SourceUrl+"\n7-Zip source: https://www.7-zip.org/sdk.html\n");
-   foreach(var name in new[]{"GPL-3.0.txt","LGPL-3.0.txt"}){using var source=typeof(LanCoreService).Assembly.GetManifestResourceStream("NovaLibrary.Assets."+name)!;using var target=File.Create(Path.Combine(folder,name));source.CopyTo(target);}
-  }finally{if(File.Exists(archive))File.Delete(archive);}
- }
- static string? FindExtractor(){
-  var registered=Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\7-Zip","Path",null)?.ToString();
-  foreach(var folder in new[]{registered,Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),"7-Zip"),Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),"7-Zip")})if(folder!=null&&File.Exists(Path.Combine(folder,"7z.exe")))return Path.Combine(folder,"7z.exe");return null;
- }
- async Task Fetch(string url,string output,long max,CancellationToken ct,IProgress<string>? progress=null,bool useProxy=false){
-  var curl=new CurlTransport(storage,settings).Prepare();string proxy=useProxy?settings.Proxy:"";var uri=new Uri(url);
-  if(useProxy&&string.IsNullOrWhiteSpace(proxy)&&!BearProxy.Current.IsBypassed(uri)){var p=BearProxy.Current.GetProxy(uri);if(p!=null&&p!=uri)proxy=p.AbsoluteUri;}
-  if(proxy.StartsWith("socks5://",StringComparison.OrdinalIgnoreCase))proxy="socks5h://"+proxy[9..];
-  try{
-   var task=Run(Path.Combine(curl,"curl.exe"),["--fail","--silent","--show-error","--location","--proto","=https","--proto-redir","=https","--connect-timeout","15","--max-time","180","--max-filesize",max.ToString(),"--cacert",Path.Combine(curl,"curl-ca-bundle.crt"),"--proxy",proxy,"--user-agent","BearLibrary-LAN/1.8.15","--output",output,url],ct);
-   var clock=Stopwatch.StartNew();long previous=0;double last=0;
-   while(!task.IsCompleted){await Task.WhenAny(task,Task.Delay(1000));if(File.Exists(output)){long bytes=new FileInfo(output).Length;double now=clock.Elapsed.TotalSeconds;progress?.Report($"正在获取联机核心 · {bytes/1048576d:F1} MB · {(bytes-previous)/Math.Max(now-last,0.001)/1024:F0} KB/s");previous=bytes;last=now;}}
-   await task;
-  }catch{if(File.Exists(output))File.Delete(output);throw;}
- }
- static async Task Run(string program,IEnumerable<string> args,CancellationToken ct){
-  var start=new ProcessStartInfo(program){UseShellExecute=false,CreateNoWindow=true,WindowStyle=ProcessWindowStyle.Hidden,RedirectStandardOutput=true,RedirectStandardError=true};foreach(var arg in args)start.ArgumentList.Add(arg);
-  using var process=Process.Start(start)!;using var cancel=ct.Register(()=>{try{if(!process.HasExited)process.Kill(true);}catch(InvalidOperationException){}});
-  var output=process.StandardOutput.ReadToEndAsync();var error=process.StandardError.ReadToEndAsync();await process.WaitForExitAsync(ct);await output;await error;if(process.ExitCode!=0)throw new IOException("联机组件获取失败，请检查代理，或导入已解压的官方核心文件夹。");
+ string BuiltIn=>Path.Combine(storage.Root,"lan","core",Version,"release");
+ public string Current=>File.Exists(Selection)?File.ReadAllText(Selection):BuiltIn;
+ public void Select(string folder){if(Directory.Exists(Path.Combine(folder,"release")))folder=Path.Combine(folder,"release");if(!File.Exists(Path.Combine(folder,"regular","x64","steam_api64.dll")))throw new InvalidOperationException("请选择含 regular、experimental、tools 的 release 文件夹。");Directory.CreateDirectory(Path.GetDirectoryName(Selection)!);File.WriteAllText(Selection,Path.GetFullPath(folder));}
+ public void UseBuiltIn(){if(File.Exists(Selection))File.Delete(Selection);}
+ public async Task Prepare(CancellationToken ct){
+  if(!Current.Equals(BuiltIn,StringComparison.OrdinalIgnoreCase)){if(!File.Exists(Path.Combine(Current,"regular","x64","steam_api64.dll")))throw new InvalidOperationException("导入的核心已移动，请重新导入或选择使用内置核心。");return;}
+  var folder=Path.GetDirectoryName(BuiltIn)!;var ready=Path.Combine(folder,"bundled.ready");if(File.Exists(ready))return;
+  await Task.Run(()=>{
+   using var source=typeof(LanCoreService).Assembly.GetManifestResourceStream("NovaLibrary.LanAssets.core-"+Version+".zip")??throw new InvalidOperationException("构建缺少内置核心，请先运行 Build/prepare_lan_core.py。");
+   Directory.CreateDirectory(folder);System.IO.Compression.ZipFile.ExtractToDirectory(source,folder,true);
+   File.WriteAllText(Path.Combine(folder,"SOURCE.txt"),"Goldberg Steam Emulator\nLGPL-3.0\nCorresponding source: "+SourceUrl+"\n");
+   foreach(var name in new[]{"GPL-3.0.txt","LGPL-3.0.txt"}){using var license=typeof(LanCoreService).Assembly.GetManifestResourceStream("NovaLibrary.Assets."+name)!;using var file=File.Create(Path.Combine(folder,name));license.CopyTo(file);}
+   File.WriteAllText(ready,Version);
+  },ct);
  }
 }

@@ -66,9 +66,9 @@
 ### ◇ 局域网联机（试用）
 
 - 从游戏详情选择启动程序和 Steam API 文件，按游戏启用联机。
-- 下载或导入独立的 Goldberg 核心，设置昵称、本地玩家 ID、发现端口和好友地址。
+- Goldberg 核心随 EXE 内置，首次使用自动准备；支持昵称、本地玩家 ID、发现端口和好友地址配置。
 - 支持游戏内大厅及可选的实验性 Shift+Tab 好友浮层，可打开核心附带的大厅发现工具。
-- 提供普通启动、联机启动与恢复原文件，原始副本只保留一份。
+- 提供应用联机配置、普通启动、联机启动与恢复原文件，原始副本只保留一份。
 - 真实核心的本地双进程大厅测试已通过；星露谷物语游戏实机及双机局域网尚未验证。
 
 详细操作和兼容性范围见 [局域网联机说明](docs/lan-play.md)。
@@ -101,7 +101,7 @@ python -m pip install -r requirements.txt
 python Build/publish.py
 ```
 
-输出目录为 `dist`，主程序为 `dist/BearLibrary.exe`。脚本从公开上游获取 curl 与 CA 包，再从本仓库源码构建下载器和桌面程序。源码仓库不附带预编译的 Bear 程序。
+输出目录为 `dist`，主程序为 `dist/BearLibrary.exe`。脚本从公开上游获取 curl、CA 包和固定版本联机核心，将核心打包进 EXE，再从本仓库源码构建下载器和桌面程序。源码仓库不附带预编译的 Bear 程序。
 
 仓库提供 [GitHub Actions 构建模板](docs/build-workflow.example.yml)。将其放入 `.github/workflows/build.yml` 后可启用相同构建，并保存构建产物。模板不需要仓库密钥，也不会自动发布 Release。
 
@@ -177,7 +177,7 @@ Bear 从一个方便自己整理游戏的小工具，逐步长出了下载管理
 | [SteamHostSync](https://github.com/Clov614/SteamHostSync) | 网络地址提示的实现参考 |
 | [Goldberg Steam Emulator](https://github.com/Detanup01/gbe_fork) | 可选局域网核心、大厅接口及发现工具 |
 | [SmartGoldbergEmu](https://github.com/delabarra/SmartGoldbergEmu) | 联机配置与游戏启动体验参考 |
-| [7-Zip](https://www.7-zip.org/) | 可选的核心解包工具 |
+| [7-Zip](https://www.7-zip.org/) | 构建时处理官方核心包 |
 | [PyInstaller](https://github.com/pyinstaller/pyinstaller) | 下载工作进程打包 |
 
 致谢所列项目是依赖或设计参考，**不表示它们提供本项目的游戏资料**。第三方许可证与边界见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

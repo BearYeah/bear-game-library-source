@@ -10,6 +10,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--skip-assets', action='store_true', help='Use already prepared local assets')
 parser.add_argument('--skip-worker', action='store_true', help='Use an already built local worker')
 args = parser.parse_args()
+subprocess.run([sys.executable, str(root/'Build/prepare_lan_core.py')], check=True)
 if not args.skip_assets:
     subprocess.run([sys.executable, str(root/'Build/fetch_network_assets.py')], check=True)
 if not args.skip_worker:

@@ -9,12 +9,11 @@
   <StackPanel><TextBlock Text="LOCAL PLAY / EXPERIMENTAL" Foreground="#7DE7FF" FontFamily="Consolas" FontSize="12"/><TextBlock x:Name="GameName" FontSize="25" FontWeight="Bold" Margin="0,8,0,5"/><TextBlock x:Name="ModeState" Foreground="#A5BAD2" FontSize="12" Margin="0,0,0,15"/></StackPanel>
   <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"><StackPanel x:Name="OptionsPanel" Margin="0,0,12,0">
    <TextBlock Text="游戏启动程序" FontSize="12"/><Grid Margin="0,7,0,12"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBox x:Name="ExeBox"/><Button Grid.Column="1" Content="选择 EXE" Click="ChooseExecutable" Margin="8,0,0,0"/></Grid>
-   <TextBlock Text="游戏使用的 Steam API 文件" FontSize="12"/><Grid Margin="0,7,0,12"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBox x:Name="ApiBox"/><Button Grid.Column="1" Content="选择 DLL" Click="ChooseApi" Margin="8,0,0,0"/></Grid>
+   <TextBlock Text="游戏目录里的 Steam API DLL（自动识别）" FontSize="12"/><Grid Margin="0,7,0,5"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBox x:Name="ApiBox"/><Button Grid.Column="1" Content="手动选择" Click="ChooseApi" Margin="8,0,0,0"/></Grid><TextBlock x:Name="ApiHint" Text="选择游戏 EXE 后自动查找 steam_api64.dll 或 steam_api.dll；部分游戏放在子目录中。" FontSize="11" Foreground="#8F9DB3" Margin="0,0,0,12"/>
    <TextBlock Text="启动参数（可留空）" FontSize="12"/><TextBox x:Name="ArgumentsBox" Margin="0,7,0,15"/>
    <Border Background="#152338" Padding="14" CornerRadius="8"><StackPanel>
-    <TextBlock Text="联机核心 · Goldberg / LGPLv3" FontWeight="Bold"/><TextBlock x:Name="CorePath" FontSize="10" Foreground="#8F9DB3" Margin="0,7,0,10"/>
-    <WrapPanel><Button Content="下载官方核心" Click="DownloadCore" Margin="0,0,8,6"/><Button Content="导入核心文件夹" Click="ImportCore" Margin="0,0,8,6"/><Button Content="核心源码 ↗" Click="OpenCoreSource" Margin="0,0,0,6"/></WrapPanel>
-    <CheckBox x:Name="CoreProxyBox" Content="核心下载跟随软件代理（默认直连）" Foreground="#9BB7D2" FontSize="11" Margin="0,5,0,0"/>
+    <TextBlock Text="内置联机核心 · Goldberg / LGPLv3" FontWeight="Bold"/><TextBlock Text="随 Bear 一起更新，首次使用自动准备，无需单独下载。" FontSize="11" Foreground="#9BB7D2" Margin="0,7,0,0"/><TextBlock x:Name="CorePath" FontSize="10" Foreground="#8F9DB3" Margin="0,7,0,10"/>
+    <WrapPanel><Button Content="使用内置核心" Click="UseBuiltInCore" Margin="0,0,8,6"/><Button Content="导入其他版本" Click="ImportCore" Margin="0,0,8,6"/><Button Content="核心源码 ↗" Click="OpenCoreSource" Margin="0,0,0,6"/></WrapPanel>
    </StackPanel></Border>
    <Grid Margin="0,16,0,12"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="16"/><ColumnDefinition Width="170"/></Grid.ColumnDefinitions><StackPanel><TextBlock Text="玩家昵称" FontSize="12"/><TextBox x:Name="NicknameBox" Margin="0,7,0,0"/></StackPanel><StackPanel Grid.Column="2"><TextBlock Text="发现端口" FontSize="12"/><TextBox x:Name="PortBox" Margin="0,7,0,0"/></StackPanel></Grid>
    <TextBlock Text="好友地址（可选，每行一个 IP、域名或 IP:端口）" FontSize="12"/><TextBox x:Name="PeersBox" AcceptsReturn="True" Height="65" VerticalScrollBarVisibility="Auto" Margin="0,7,0,7"/>
@@ -24,6 +23,6 @@
    <WrapPanel Margin="0,10,0,10"><Button Content="保存联机配置" Click="SaveProfile" Margin="0,0,8,6"/><Button Content="发现 / 加入大厅" Click="BrowseLobbies" Margin="0,0,0,6"/></WrapPanel>
    <TextBlock x:Name="GameHint" Foreground="#9BB7D2" FontSize="11"/>
   </StackPanel></ScrollViewer>
-  <StackPanel Grid.Row="2" Margin="0,15,0,0"><TextBlock x:Name="StatusLabel" Text="选择游戏程序与 Steam API 文件后启用。原文件只备份一次，可随时恢复。" FontSize="11" Foreground="#9BB7D2" Margin="0,0,0,12"/><WrapPanel x:Name="ActionPanel"><Button Content="普通启动" Click="StartNormal" Margin="0,0,8,6"/><Button x:Name="ApplyButton" Content="启用联机模式" Click="ApplyMode" Margin="0,0,8,6"/><Button Content="联机启动" Click="StartLan" Background="#7DE7FF" Foreground="#0E1524" FontWeight="Bold" Margin="0,0,8,6"/><Button x:Name="RestoreButton" Content="恢复原游戏文件" Click="RestoreMode" Margin="0,0,0,6"/></WrapPanel></StackPanel>
+  <StackPanel Grid.Row="2" Margin="0,15,0,0"><TextBlock x:Name="StatusLabel" Text="选择游戏程序与 Steam API 文件后启用。原文件只备份一次，可随时恢复。" FontSize="11" Foreground="#9BB7D2" Margin="0,0,0,12"/><WrapPanel x:Name="ActionPanel"><Button Content="普通启动" Click="StartNormal" Margin="0,0,8,6"/><Button x:Name="ApplyButton" Content="应用联机配置" Click="ApplyMode" Margin="0,0,8,6"/><Button Content="联机启动" Click="StartLan" Background="#7DE7FF" Foreground="#0E1524" FontWeight="Bold" Margin="0,0,8,6"/><Button x:Name="RestoreButton" Content="恢复原游戏文件" Click="RestoreMode" Margin="0,0,0,6"/></WrapPanel></StackPanel>
  </Grid>
 </Window>
