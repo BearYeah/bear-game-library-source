@@ -5,19 +5,24 @@ using System.Windows.Media.Imaging;
 namespace NovaLibrary;
 
 public class GameItem : INotifyPropertyChanged {
- uint sourceId; bool enabled; string name=""; string coverPath=""; string kind="game";
+ uint sourceId,parentId; bool enabled,libraryDlcsExpanded; string name=""; string coverPath=""; string kind="game";List<GameItem> libraryDlcs=[];int libraryDlcTotal;
  public uint AppId {get;set;}
- public uint SourceId {get=>sourceId;set{sourceId=value;Changed();Changed(nameof(MappingLabel));}}
+ public uint SourceId {get=>sourceId;set{sourceId=value;Changed();Changed(nameof(MappingLabel));Changed(nameof(LibraryCardHint));}}
  public string Name {get=>name;set{name=value;Changed();}}
- public string Kind {get=>kind;set{kind=value;Changed();Changed(nameof(TypeLabel));}}
+ public string Kind {get=>kind;set{kind=value;Changed();Changed(nameof(TypeLabel));Changed(nameof(LibraryCardHint));}}
  public bool Enabled {get=>enabled;set{enabled=value;Changed();Changed(nameof(StateLabel));}}
  public string CoverUrl {get;set;}="";
  public string CoverPath {get=>coverPath;set{coverPath=value;Changed();Changed(nameof(Cover));}}
  public bool IsFree {get;set;}
- public uint ParentId {get;set;}
+ public uint ParentId {get=>parentId;set{parentId=value;Changed();Changed(nameof(LibraryCardHint));}}
  [JsonIgnore] public string TypeLabel=>Kind=="dlc"?"DLC":Kind=="demo"?"试玩":Kind=="tool"?"工具":"游戏";
  [JsonIgnore] public string MappingLabel=>SourceId>0?$"替代 ID  {SourceId}":"勾选自动分配 ID";
  [JsonIgnore] public string StateLabel=>Enabled?"已启用":"未启用";
+ [JsonIgnore] public string LibraryCardHint=>Kind=="dlc"?(ParentId>0?$"所属本体 / {ParentId}":"待归属 DLC · 点击读取资料"):MappingLabel;
+ [JsonIgnore] public List<GameItem> LibraryDlcs {get=>libraryDlcs;set{libraryDlcs=value;Changed();Changed(nameof(LibraryDlcLabel));}}
+ [JsonIgnore] public int LibraryDlcTotal {get=>libraryDlcTotal;set{libraryDlcTotal=value;Changed(nameof(LibraryDlcLabel));}}
+ [JsonIgnore] public string LibraryDlcLabel=>LibraryDlcs.Count==LibraryDlcTotal?$"DLC · {LibraryDlcTotal}":$"DLC · {LibraryDlcs.Count} / {LibraryDlcTotal}";
+ [JsonIgnore] public bool LibraryDlcsExpanded {get=>libraryDlcsExpanded;set{libraryDlcsExpanded=value;Changed();}}
  [JsonIgnore] public BitmapSource? Cover {get {try{
   if(!File.Exists(CoverPath))return null;
   var b=new BitmapImage();b.BeginInit();b.CacheOption=BitmapCacheOption.OnLoad;b.UriSource=new Uri(Path.GetFullPath(CoverPath));b.DecodePixelWidth=400;b.EndInit();b.Freeze();return b;

@@ -31,6 +31,30 @@ public partial class MainWindow {
  readonly ObservableCollection<DownloadTaskItem> downloads=[];
  readonly Dictionary<uint,DownloadWindow> downloadWindows=[];
  bool stoppingDownloads;
+ List<GameItem> DownloadDlcChoices(GameItem game){
+  var options=dlcs.Where(d=>d.ParentId==game.AppId).Concat(library.Games.Where(d=>d.Kind=="dlc"&&d.ParentId==game.AppId)).GroupBy(d=>d.AppId).Select(g=>g.First().Copy()).ToList();
+  var cached=Path.Combine(storage.Info,game.AppId+".json");
+  if(File.Exists(cached)){
+   var info=JsonSerializer.Deserialize<AppInfo>(File.ReadAllText(cached));
+   foreach(var id in info?.DlcIds??[])if(!options.Any(d=>d.AppId==id))options.Add(new(){AppId=id,Name=$"DLC {id}",Kind="dlc",ParentId=game.AppId});
+  }return options;
+ }
+ async void BeginSelectedDownload(){
+  if(selected==null)return;var item=selected.Copy();
+  try{
+   if(item.Kind!="dlc"){OpenDownload(item,DownloadDlcChoices(item),chosenDlcs.Count>0?chosenDlcs.ToArray():null);return;}
+   if(item.ParentId==0)item.ParentId=(await store.Details(item.AppId,network.Token)).ParentId;
+   if(item.ParentId==0)throw new InvalidOperationException("未找到这个 DLC 的所属游戏，请从本体详情中选择 DLC。");
+   var parent=library.Games.FirstOrDefault(g=>g.AppId==item.ParentId)?.Copy()??(await store.Details(item.ParentId,network.Token)).ToGame();
+   var choices=DownloadDlcChoices(parent);if(!choices.Any(d=>d.AppId==item.AppId))choices.Add(item);
+   OpenDownload(parent,choices,[item.AppId],true);
+  }catch(Exception ex){Notify(Friendly(ex),true);}
+ }
+ void DownloadSelectedDlcs(object sender,RoutedEventArgs e){
+  if(selected==null||chosenDlcs.Count==0)return;
+  var game=selected.Copy();if(game.Kind=="dlc")return;
+  OpenDownload(game,DownloadDlcChoices(game),chosenDlcs.ToArray(),true);
+ }
  DownloadTaskItem DownloadRow(GameItem game){var row=downloads.FirstOrDefault(t=>t.AppId==game.AppId);if(row!=null)return row;row=new(game.AppId,game.Name);downloads.Add(row);return row;}
  void RefreshDownloads(){
   var folder=Path.Combine(storage.Root,"downloads");
@@ -47,13 +71,13 @@ public partial class MainWindow {
   DownloadsEmpty.Visibility=downloads.Count==0?Visibility.Visible:Visibility.Collapsed;
   if(view=="downloads")CountLabel.Text=$"{downloads.Count:00} TASKS";
  }
- DownloadWindow OpenDownload(GameItem game){
-  if(downloadWindows.TryGetValue(game.AppId,out var existing)){existing.Show();existing.Activate();return existing;}
+ DownloadWindow OpenDownload(GameItem game,IEnumerable<GameItem>? dlcOptions=null,IEnumerable<uint>? selectedDlcIds=null,bool? dlcOnly=null){
+  if(downloadWindows.TryGetValue(game.AppId,out var existing)){if(existing.IsDownloading&&(selectedDlcIds!=null||dlcOnly.HasValue))Notify("这个游戏已有下载任务，请先暂停，再调整 DLC 选择。");else existing.ConfigureDlcSelection(dlcOptions,selectedDlcIds,dlcOnly);existing.Show();existing.Activate();return existing;}
   var row=DownloadRow(game);var service=new GameDownloadService(storage);row.Set(service.Status(game.AppId),false);
-  var dialog=new DownloadWindow(storage,library.Settings,game,()=>{Bookmark(game);SaveLocal();}){Owner=this};downloadWindows.Add(game.AppId,dialog);
+  var dialog=new DownloadWindow(storage,library.Settings,game,()=>{Bookmark(game);SaveLocal();},dlcOptions:dlcOptions??DownloadDlcChoices(game),selectedDlcIds:selectedDlcIds,dlcOnly:dlcOnly){Owner=this};downloadWindows.Add(game.AppId,dialog);
   dialog.DownloadStarted+=()=>{row.Set(service.Status(game.AppId),true);ChangeView("downloads");dialog.Hide();};
   dialog.DownloadEvent+=update=>{var saved=row.Update;if(update.Total>0){saved.Completed=update.Completed;saved.Total=update.Total;saved.Speed=update.Speed;saved.Connections=update.Connections;}if(update.Directory.Length>0)saved.Directory=update.Directory;saved.Event=update.Event;if(update.Message.Length>0)saved.Message=update.Message;if(update.Phase.Length>0)saved.Phase=update.Phase;row.Set(saved,true,dialog.IsCommitting);};
-  dialog.DownloadStopped+=()=>{row.Set(service.Status(game.AppId),false);if(dialog.InstalledDirectory.Length>0){RefreshCards();Notify($"{game.Name} 下载完成，已写入 Steam 安装记录。");}UpdateDownloadsSummary();};
+  dialog.DownloadStopped+=()=>{row.Set(service.Status(game.AppId),false);if(dialog.InstalledDirectory.Length>0){RefreshCards();Notify(dialog.DlcOnly?$"{game.Name} 的 DLC 已下载到本体目录。":$"{game.Name} 下载完成，已写入 Steam 安装记录。");}UpdateDownloadsSummary();};
   dialog.DeleteRequested+=async()=>await RemoveDownload(row);
   dialog.Closed+=(_,_)=>{downloadWindows.Remove(game.AppId);row.Set(service.Status(game.AppId),false);UpdateDownloadsSummary();if(selected?.AppId==game.AppId)ShowSelected();};
   dialog.Show();UpdateDownloadsSummary();return dialog;
@@ -67,7 +91,7 @@ public partial class MainWindow {
  async Task RemoveDownload(DownloadTaskItem row){
   try{
    var service=new GameDownloadService(storage);var info=service.RemovalInfo(row.AppId);bool deleteFiles=false;
-   if(info.Installed){if(MessageBox.Show(this,$"移除“{row.Name}”的下载记录？\n游戏文件和 Steam 安装记录会保留。","移除下载记录",MessageBoxButton.OKCancel,MessageBoxImage.Question)!=MessageBoxResult.OK)return;}
+   if(info.Installed){if(MessageBox.Show(this,$"移除“{row.Name}”的下载记录？\n"+(info.SharedDirectory?"DLC 与本体共用目录，现有游戏文件会保留。":"游戏文件和 Steam 安装记录会保留。"),"移除下载记录",MessageBoxButton.OKCancel,MessageBoxImage.Question)!=MessageBoxResult.OK)return;}
    else{
     var choice=MessageBox.Show(this,$"删除“{row.Name}”的下载任务？\n\n是：停止下载，删除未完成的游戏目录及续传记录。\n否：只移除任务，保留游戏文件。\n取消：保留任务。\n\n游戏目录：{(info.Directory.Length>0?info.Directory:"尚未创建")}","删除下载任务",MessageBoxButton.YesNoCancel,MessageBoxImage.Warning);
     if(choice==MessageBoxResult.Cancel)return;deleteFiles=choice==MessageBoxResult.Yes;

@@ -9,7 +9,7 @@ public static class UiSelfTest {
   var app=new Application{ShutdownMode=ShutdownMode.OnExplicitShutdown};
   var storage=new Storage(folder);var state=new LibraryState{CatalogRevision=1,Settings=new(){Motion=false},Pool=new uint[]{90,205,219}.Concat(Enumerable.Range(500000,1000).Select(n=>(uint)n)).Select(id=>new Candidate{AppId=id,Confirmed=true}).ToList()};
   var window=new MainWindow(storage,state,true);
-  try{var result=window.VerifyOfflineWorkflow();File.WriteAllText(Path.Combine(output,"workflow-test.json"),JsonSerializer.Serialize(new{result="pass",scope="WPF handlers exercised inside an isolated application; no desktop window shown, no Steam files modified",checks=result},Storage.Json));return 0;}
+  try{var result=window.VerifyOfflineWorkflow();window.RenderDlcGrouping(Path.Combine(output,"dlc-ui"));File.WriteAllText(Path.Combine(output,"workflow-test.json"),JsonSerializer.Serialize(new{result="pass",scope="WPF handlers exercised inside an isolated application; no desktop window shown, no Steam files modified",checks=result},Storage.Json));return 0;}
   catch(Exception e){File.WriteAllText(Path.Combine(output,"workflow-test.json"),JsonSerializer.Serialize(new{result="fail",error=e.ToString()},Storage.Json));return 1;}
   finally{window.Close();app.Shutdown();}
  }
@@ -45,7 +45,10 @@ public partial class MainWindow {
   var before=library.Games.Count;ManualAppId.Text="invalid";AddManualGame(this,new RoutedEventArgs(Button.ClickEvent));Check(library.Games.Count==before,"invalid manual AppID does not alter saved library");
   Check(offline.Requests==0,"all add and select operations complete with zero network requests");
   Check(AutoCheckUpdatesBox.IsChecked==false&&AutoDownloadUpdatesBox.IsChecked==false,"public build leaves automatic updates off until its publisher configures signing trust");
-  AutoCheckUpdatesBox.IsChecked=false;AutoDownloadUpdatesBox.IsChecked=false;UpdatePreferencesChanged(this,new RoutedEventArgs());var reloaded=storage.Load();Check(!reloaded.Settings.AutoCheckUpdates&&!reloaded.Settings.AutoDownloadUpdates,"turning off automatic update preferences persists without altering the library");return checks;
+  var download=new DownloadWindow(storage,library.Settings,new GameItem{AppId=105600,Name="Fixture download"},()=>{},()=>{});
+  var jobs=(ComboBox)download.FindName("JobsBox");var transfer=(ComboBox)download.FindName("TransferProxyBox");
+  Check(((ComboBoxItem)jobs.SelectedItem).Tag.ToString()=="0"&&((ComboBoxItem)transfer.SelectedItem).Tag.ToString()=="direct","new downloads default to automatic concurrency and direct game-content connections");download.Close();
+  AutoCheckUpdatesBox.IsChecked=false;AutoDownloadUpdatesBox.IsChecked=false;UpdatePreferencesChanged(this,new RoutedEventArgs());var reloaded=storage.Load();Check(!reloaded.Settings.AutoCheckUpdates&&!reloaded.Settings.AutoDownloadUpdates,"turning off automatic update preferences persists without altering the library");checks.AddRange(VerifyDlcGrouping());checks.AddRange(DlcDownloadUiTests.Exercise(Path.Combine(storage.Root,"dlc-download-check")));return checks;
  }
 }
 sealed class OfflineFixtureHttp : HttpMessageHandler {

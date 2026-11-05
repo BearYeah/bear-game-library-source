@@ -32,7 +32,8 @@
   <Style TargetType="ComboBoxItem"><Setter Property="Foreground" Value="#D4DCE9"/><Setter Property="Background" Value="#1A253C"/><Setter Property="Padding" Value="12,9"/><Style.Triggers><Trigger Property="IsHighlighted" Value="True"><Setter Property="Background" Value="#254350"/><Setter Property="Foreground" Value="#A5E9FF"/></Trigger></Style.Triggers></Style>
   <Style TargetType="ScrollBar"><Setter Property="Width" Value="11"/><Setter Property="Background" Value="#0D1624"/><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ScrollBar"><Grid Background="{TemplateBinding Background}"><Track x:Name="PART_Track" IsDirectionReversed="True" Orientation="{TemplateBinding Orientation}" Minimum="{TemplateBinding Minimum}" Maximum="{TemplateBinding Maximum}" Value="{TemplateBinding Value}" ViewportSize="{TemplateBinding ViewportSize}"><Track.DecreaseRepeatButton><RepeatButton Command="{x:Static ScrollBar.PageUpCommand}"><RepeatButton.Template><ControlTemplate TargetType="RepeatButton"><Border Background="Transparent"/></ControlTemplate></RepeatButton.Template></RepeatButton></Track.DecreaseRepeatButton><Track.Thumb><Thumb><Thumb.Template><ControlTemplate TargetType="Thumb"><Border Background="#33495F" CornerRadius="4" Margin="2"/></ControlTemplate></Thumb.Template></Thumb></Track.Thumb><Track.IncreaseRepeatButton><RepeatButton Command="{x:Static ScrollBar.PageDownCommand}"><RepeatButton.Template><ControlTemplate TargetType="RepeatButton"><Border Background="Transparent"/></ControlTemplate></RepeatButton.Template></RepeatButton></Track.IncreaseRepeatButton></Track></Grid></ControlTemplate></Setter.Value></Setter><Style.Triggers><Trigger Property="Orientation" Value="Horizontal"><Setter Property="Width" Value="Auto"/><Setter Property="Height" Value="11"/></Trigger></Style.Triggers></Style>
   <DataTemplate x:Key="GameCard">
-   <Button Tag="{Binding}" Click="GameClick" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Width="222" Height="254" Padding="0" Margin="0,0,16,18" Background="#141D32" BorderBrush="#29354A">
+    <Border Width="222" Margin="0,0,16,18" VerticalAlignment="Top" Background="#141D32" BorderBrush="#29354A" BorderThickness="1" CornerRadius="9"><StackPanel>
+    <Button Tag="{Binding}" Click="GameClick" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Height="254" Padding="0" Background="#141D32" BorderThickness="0">
     <Grid>
      <Grid.RowDefinitions><RowDefinition Height="104"/><RowDefinition Height="*"/></Grid.RowDefinitions>
      <Border Background="#1B2440" ClipToBounds="True" CornerRadius="6,6,0,0">
@@ -47,11 +48,22 @@
      <StackPanel Grid.Row="1" Margin="14,12">
       <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" MaxHeight="42"/>
       <TextBlock Text="{Binding AppId,StringFormat=APP / {0}}" Foreground="#778AA9" FontFamily="Consolas" FontSize="11" Margin="0,6,0,0"/>
-      <TextBlock Text="{Binding MappingLabel}" Foreground="#99A8BE" FontSize="10" Margin="0,7,0,0"/>
+       <TextBlock Text="{Binding LibraryCardHint}" Foreground="#99A8BE" FontSize="10" Margin="0,7,0,0"/>
       <CheckBox Tag="{Binding}" Content="加入 / 启用" IsChecked="{Binding Enabled,Mode=OneWay}" Click="CardToggle" Margin="0,9,0,0" FontSize="11"/>
      </StackPanel>
     </Grid>
-   </Button>
+    </Button>
+    <Expander Header="{Binding LibraryDlcLabel}" IsExpanded="{Binding LibraryDlcsExpanded,Mode=TwoWay}" Foreground="#B6A0E8" FontSize="11" Padding="10,8" BorderBrush="#29354A" BorderThickness="0,1,0,0">
+     <Expander.Style><Style TargetType="Expander"><Setter Property="Visibility" Value="Visible"/><Style.Triggers><DataTrigger Binding="{Binding LibraryDlcs.Count}" Value="0"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></Expander.Style>
+     <ScrollViewer MaxHeight="180" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="0,7,0,0"><ItemsControl ItemsSource="{Binding LibraryDlcs}"><ItemsControl.ItemTemplate><DataTemplate>
+      <Grid Margin="0,3"><Grid.ColumnDefinitions><ColumnDefinition Width="24"/><ColumnDefinition Width="*"/><ColumnDefinition Width="26"/></Grid.ColumnDefinitions>
+       <CheckBox Tag="{Binding}" IsChecked="{Binding Enabled,Mode=OneWay}" Click="CardToggle" ToolTip="启用或停用此 DLC" VerticalAlignment="Center"/>
+       <Button Grid.Column="1" Tag="{Binding}" Click="GameClick" Padding="4,6" Background="Transparent" BorderThickness="0" HorizontalContentAlignment="Stretch"><StackPanel><TextBlock Text="{Binding Name}" FontSize="10" TextWrapping="Wrap"/><TextBlock Text="{Binding AppId,StringFormat=APP / {0}}" FontSize="9" Foreground="#778AA9" Margin="0,3,0,0"/></StackPanel><Button.ToolTip><TextBlock Text="{Binding MappingLabel}"/></Button.ToolTip></Button>
+       <Button Grid.Column="2" Tag="{Binding}" Click="RemoveLibraryDlc" Content="×" Padding="5,5" Background="Transparent" BorderThickness="0" VerticalAlignment="Center" ToolTip="从游戏库移除此 DLC"/>
+      </Grid>
+     </DataTemplate></ItemsControl.ItemTemplate></ItemsControl></ScrollViewer>
+    </Expander>
+    </StackPanel></Border>
   </DataTemplate>
  </Window.Resources>
  <Border BorderBrush="#334464" BorderThickness="1" CornerRadius="10"><Border.Background><LinearGradientBrush StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#101A2D" Offset="0"/><GradientStop Color="#0A0F20" Offset="0.55"/><GradientStop Color="#17132B" Offset="1"/></LinearGradientBrush></Border.Background>
@@ -140,6 +152,7 @@
       <Border Margin="0,18,0,0" Height="148" Background="#172B36" CornerRadius="9" ClipToBounds="True"><Grid><TextBlock Text="BEAR /" Foreground="#3A5274" FontSize="37" FontFamily="Consolas" HorizontalAlignment="Center" VerticalAlignment="Center"/><Image x:Name="DetailCover" Stretch="UniformToFill"/></Grid></Border>
       <TextBlock x:Name="DetailName" Text="选择一个游戏" TextWrapping="Wrap" FontWeight="Bold" FontSize="20" Margin="0,18,0,0"/>
       <TextBlock x:Name="DetailMeta" Text="查看详情、管理映射与 DLC。" Foreground="#8F9DB3" FontFamily="Consolas" FontSize="11" TextWrapping="Wrap" Margin="0,8,0,0"/>
+      <Button x:Name="ParentGameButton" Content="↑ 查看所属游戏" Click="OpenParentGame" Visibility="Collapsed" Padding="10,7" Margin="0,10,0,0" HorizontalContentAlignment="Left"/>
       <WrapPanel Margin="0,14,0,8"><Button x:Name="AddButton" Content="加入游戏库" Style="{StaticResource Primary}" Click="AddSelected" Padding="12,8" IsEnabled="False"/><Button x:Name="RemoveButton" Content="移除" Click="RemoveSelected" Padding="12,8" Margin="8,0,0,0" IsEnabled="False"/></WrapPanel>
       <Button x:Name="DownloadGameButton" Content="↓ 下载 / 安装游戏" Click="DownloadGame" IsEnabled="False" HorizontalContentAlignment="Center" Margin="0,7,0,0" Background="#254350"/>
       <Button x:Name="LanGameButton" Content="◇ 局域网联机 · 试用" Click="OpenLanGame" IsEnabled="False" HorizontalContentAlignment="Center" Margin="0,8,0,0" Background="#2C2845"/>
@@ -148,8 +161,9 @@
       <Border BorderBrush="#27384D" BorderThickness="0,1,0,0" Margin="0,22,0,0" Padding="0,18,0,0"><StackPanel><TextBlock x:Name="DlcTitle" Text="DLC / 商店公开列表" Foreground="#B6A0E8" FontWeight="Bold" FontSize="13"/><TextBlock x:Name="DlcHint" Text="选中游戏后查询可见 DLC。" Foreground="#7F92AE" FontSize="11" TextWrapping="Wrap" Margin="0,8,0,10"/>
        <WrapPanel Margin="0,0,0,10"><Button x:Name="SelectAllDlcButton" Content="全选 DLC" Tag="True" Click="SelectAllDlcs" Padding="10,6" IsEnabled="False"/><Button x:Name="ClearDlcButton" Content="取消全选" Tag="False" Click="SelectAllDlcs" Padding="10,6" Margin="8,0,0,0" IsEnabled="False"/></WrapPanel><TextBlock x:Name="DlcCountLabel" Text="已选 0 / 0" Foreground="#9DDFFF" FontSize="10" Margin="0,0,0,8"/>
        <TextBox x:Name="DlcFilter" ToolTip="筛选 DLC 名称或 AppID" TextChanged="DlcFilterChanged" Margin="0,0,0,10"/>
-       <ItemsControl x:Name="DlcItems"><ItemsControl.ItemTemplate><DataTemplate><CheckBox Tag="{Binding}" IsChecked="{Binding Enabled,Mode=TwoWay}" Content="{Binding Name}" Margin="0,6" FontSize="11" Checked="DlcChecked" Unchecked="DlcUnchecked"><CheckBox.ContentTemplate><DataTemplate><TextBlock Text="{Binding}" TextWrapping="Wrap" Width="225"/></DataTemplate></CheckBox.ContentTemplate><CheckBox.ToolTip><TextBlock Text="{Binding AppId}"/></CheckBox.ToolTip></CheckBox></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+       <ScrollViewer MaxHeight="300" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><ItemsControl x:Name="DlcItems"><ItemsControl.ItemTemplate><DataTemplate><Grid Margin="0,3"><Grid.ColumnDefinitions><ColumnDefinition Width="25"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><CheckBox Tag="{Binding}" IsChecked="{Binding Enabled,Mode=TwoWay}" Checked="DlcChecked" Unchecked="DlcUnchecked" ToolTip="选择后批量加入或下载" VerticalAlignment="Center"/><Button Grid.Column="1" Tag="{Binding}" Click="GameClick" Padding="3,5" Background="Transparent" BorderThickness="0" HorizontalContentAlignment="Stretch"><TextBlock Text="{Binding Name}" TextWrapping="Wrap" FontSize="11"/><Button.ToolTip><TextBlock Text="{Binding AppId,StringFormat=查看 DLC 详情 / {0}}"/></Button.ToolTip></Button></Grid></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></ScrollViewer>
        <Button x:Name="AddDlcButton" Content="加入选中的 DLC" Click="AddDlcs" Margin="0,12,0,0" IsEnabled="False"/>
+       <Button x:Name="DownloadDlcButton" Content="↓ 下载选中的 DLC" Click="DownloadSelectedDlcs" Margin="0,8,0,0" IsEnabled="False" Background="#254350"/>
       </StackPanel></Border>
      </StackPanel></ScrollViewer>
     </Border>

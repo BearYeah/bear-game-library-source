@@ -12,6 +12,7 @@ public partial class MainWindow : Window {
  SteamStore store;CancellationTokenSource network=new(),detailWork=new();
  ObservableCollection<GameItem> visible=new();List<GameItem> dlcs=[];
  readonly HashSet<uint> chosenDlcs=[];GameItem? selected;
+ readonly Dictionary<uint,GameItem> missingDlcParents=[];
  string view="library",libraryQuery="",onlineQuery="";bool busy,switchingQuery,steamOperation;readonly bool preview;
  readonly List<GameItem> searchResults=[];readonly SteamLifecycle steamLifecycle;
  readonly CancellationTokenSource updateLifetime=new();bool updateBusy,preparingUpdate,applyingUpdate,installUpdateRequested;PendingUpdate? pendingUpdate;SignedRelease? availableUpdate;
@@ -48,9 +49,31 @@ public partial class MainWindow : Window {
  void ModeSelectionChanged(object sender,SelectionChangedEventArgs e){if(CompatibilityHint!=null)UpdateCompatibilityHint();}
  void RefreshCards(){
   var q=libraryQuery.Trim();
-  var list=view=="library"?library.Games.Where(g=>q.Length==0||g.Name.Contains(q,StringComparison.OrdinalIgnoreCase)||g.AppId.ToString().Contains(q)).ToList():searchResults.Select(g=>library.Games.FirstOrDefault(actual=>actual.AppId==g.AppId)??g).ToList();
+  var list=view=="library"?LibraryCards(q):searchResults.Select(g=>library.Games.FirstOrDefault(actual=>actual.AppId==g.AppId)??g).ToList();
+  if(view=="search")foreach(var g in list){g.LibraryDlcs=[];g.LibraryDlcTotal=0;}
   if(view is "library" or "search"){visible.Clear();foreach(var g in list)visible.Add(g);}
-  CountLabel.Text=$"{visible.Count:00} TITLES";EmptyState.Visibility=visible.Count==0&&CardsPanel.Visibility==Visibility.Visible?Visibility.Visible:Visibility.Collapsed;
+  CountLabel.Text=view=="library"?$"{visible.Count:00} TITLES · {library.Games.Count(g=>g.Kind=="dlc")} DLC":$"{visible.Count:00} TITLES";EmptyState.Visibility=visible.Count==0&&CardsPanel.Visibility==Visibility.Visible?Visibility.Visible:Visibility.Collapsed;
+ }
+ List<GameItem> LibraryCards(string query){
+  static bool Matches(GameItem g,string q)=>q.Length==0||g.Name.Contains(q,StringComparison.OrdinalIgnoreCase)||g.AppId.ToString().Contains(q);
+  var grouped=library.Games.Where(g=>g.Kind=="dlc"&&g.ParentId>0&&g.ParentId!=g.AppId).GroupBy(g=>g.ParentId).ToDictionary(g=>g.Key,g=>g.ToList());
+  var parents=library.Games.Where(g=>g.Kind!="dlc"||g.ParentId==0||g.ParentId==g.AppId).ToList();
+  foreach(var id in grouped.Keys){
+   if(parents.Any(g=>g.AppId==id))continue;
+   var parent=library.Games.FirstOrDefault(g=>g.AppId==id);
+   if(parent==null&&!missingDlcParents.TryGetValue(id,out parent)){parent=new GameItem{AppId=id,Name=$"游戏本体 · APP {id}"};missingDlcParents[id]=parent;}
+   parents.Add(parent);
+  }
+  var cards=new List<GameItem>();
+  foreach(var parent in parents){
+   var children=grouped.GetValueOrDefault(parent.AppId)??[];var parentMatches=Matches(parent,query);
+   var matches=parentMatches?children:children.Where(g=>Matches(g,query)).ToList();
+   parent.LibraryDlcTotal=children.Count;parent.LibraryDlcs=matches;
+   if(!parentMatches&&matches.Count==0)continue;
+   if(query.Length>0&&matches.Count>0)parent.LibraryDlcsExpanded=true;
+   cards.Add(parent);
+  }
+  return cards;
  }
  void QueryChanged(object sender,TextChangedEventArgs e){
   if(switchingQuery||Cards==null)return;
@@ -77,7 +100,7 @@ public partial class MainWindow : Window {
   try{if(next is "library" or "search")QueryBox.Text=next=="library"?libraryQuery:onlineQuery;}
   finally{switchingQuery=false;}
   SearchButton.Content=next=="library"?"筛选":"搜索";
-  QueryBox.ToolTip=next=="library"?"筛选已加入的游戏：名称或 AppID；清空显示全部":"名称、AppID，或 Steam / SteamDB 商店链接";
+  QueryBox.ToolTip=next=="library"?"筛选游戏或 DLC：名称或 AppID；DLC 结果显示在所属游戏下":"名称、AppID，或 Steam / SteamDB 商店链接";
   FreeOnly.Visibility=next=="search"?Visibility.Visible:Visibility.Collapsed;
   if(next=="search")QueryBox.Focus();
   if(next=="pool"||next=="settings")EmptyState.Visibility=Visibility.Collapsed;
@@ -115,33 +138,42 @@ public partial class MainWindow : Window {
  }
  async void GameClick(object sender,RoutedEventArgs e){
   if(((Button)sender).Tag is not GameItem g)return;
+  e.Handled=true;await SelectGame(g);
+ }
+ async Task SelectGame(GameItem g){
   g=library.Games.FirstOrDefault(x=>x.AppId==g.AppId)??g;selected=g;detailWork.Cancel();detailWork=new();var ct=detailWork.Token;
-  ShowSelected();dlcs=[];chosenDlcs.Clear();DlcItems.ItemsSource=null;DlcTitle.Text="DLC / 商店公开列表";DlcHint.Text="正在查询游戏资料…";UpdateDlcCount();
+  ShowSelected();chosenDlcs.Clear();dlcs=library.Games.Where(d=>d.Kind=="dlc"&&d.ParentId==g.AppId).Select(d=>{var copy=d.Copy();copy.Enabled=false;return copy;}).ToList();
+  DlcTitle.Text=dlcs.Count>0?$"DLC / {dlcs.Count} 个已加入条目":"DLC / 商店公开列表";DlcHint.Text=dlcs.Count>0?"已显示本地 DLC，正在读取商店列表…":"正在查询游戏资料…";DlcFilter.Clear();DlcFilterChanged(DlcFilter,new TextChangedEventArgs(TextBox.TextChangedEvent,UndoAction.None));UpdateDlcCount();
   try{
    var info=await store.Details(g.AppId,ct);ct.ThrowIfCancellationRequested();
    if(selected?.AppId!=g.AppId)return;
-   g=library.Games.FirstOrDefault(x=>x.AppId==g.AppId)??g;selected=g;ApplyInfo(g,info);DlcTitle.Text=$"DLC / {info.DlcIds.Count} 个公开条目";
-   DlcHint.Text=info.Type=="dlc"?"当前条目为 DLC；可打开其商店页面查看所属游戏。":info.DlcIds.Count==0?"商店未提供可见 DLC 列表。":"正在加载 DLC 名称，选中后可批量加入。";
-   dlcs=info.DlcIds.Distinct().Select(id=>new GameItem{AppId=id,Name=$"DLC {id}",Kind="dlc",ParentId=g.AppId}).ToList();DlcFilterChanged(DlcFilter,new TextChangedEventArgs(TextBox.TextChangedEvent,UndoAction.None));UpdateDlcCount();
+   g=library.Games.FirstOrDefault(x=>x.AppId==g.AppId)??g;selected=g;ApplyInfo(g,info);ApplyDlcRelations(g,info);
+   var known=library.Games.Where(d=>d.Kind=="dlc"&&d.ParentId==g.AppId).ToList();
+   dlcs=info.DlcIds.Concat(known.Select(d=>d.AppId)).Distinct().Select(id=>{var d=known.FirstOrDefault(item=>item.AppId==id)?.Copy()??new GameItem{AppId=id,Name=$"DLC {id}"};d.Kind="dlc";d.ParentId=g.AppId;d.Enabled=chosenDlcs.Contains(id);return d;}).ToList();
+   DlcTitle.Text=$"DLC / {dlcs.Count} 个条目";DlcHint.Text=info.Type=="dlc"?(g.ParentId>0?$"此 DLC 属于 APP {g.ParentId}，可返回本体管理其他 DLC。":"当前为待归属 DLC，可查看商店中的所属游戏。"):dlcs.Count==0?"商店未提供可见 DLC 列表。":"正在加载 DLC 名称，选中后可批量加入或下载。";
+   DlcFilterChanged(DlcFilter,new TextChangedEventArgs(TextBox.TextChangedEvent,UndoAction.None));UpdateDlcCount();RefreshCards();ShowSelected();
    var coverTask=LoadSelectedCover(g,ct);
    int completed=0;
    await Parallel.ForEachAsync(dlcs,new ParallelOptions{MaxDegreeOfParallelism=3,CancellationToken=ct},async(d,c)=>{
-    try{var i=await store.Details(d.AppId,c);await Dispatcher.InvokeAsync(()=>{d.Name=i.Name;d.CoverUrl=i.Header;d.IsFree=i.IsFree;});}catch(OperationCanceledException){throw;}catch{}
+    try{var i=await store.Details(d.AppId,c);await Dispatcher.InvokeAsync(()=>{d.Name=i.Name;d.CoverUrl=i.Header;d.IsFree=i.IsFree;var local=library.Games.FirstOrDefault(item=>item.AppId==d.AppId);if(local!=null){local.Name=i.Name;local.CoverUrl=i.Header;local.IsFree=i.IsFree;local.Kind="dlc";local.ParentId=g.AppId;}});}catch(OperationCanceledException){throw;}catch{}
     var count=Interlocked.Increment(ref completed);
     await Dispatcher.InvokeAsync(()=>{if(selected?.AppId==g.AppId)DlcHint.Text=$"已读取 {count}/{dlcs.Count} 项；未查询到名称的条目显示 AppID。";});
    });
-   await coverTask;ct.ThrowIfCancellationRequested();ShowSelected();NetworkState.Text="Steam 查询成功";SaveLocal();
+   await coverTask;ct.ThrowIfCancellationRequested();DlcFilterChanged(DlcFilter,new TextChangedEventArgs(TextBox.TextChangedEvent,UndoAction.None));RefreshCards();ShowSelected();NetworkState.Text="Steam 查询成功";SaveLocal();
   }catch(OperationCanceledException){}
   catch(Exception ex){if(selected?.AppId==g.AppId){DlcHint.Text="公开资料暂时未取到，仍可手动管理 AppID。";Notify(Friendly(ex),true);NetworkState.Text="联网暂时不可用";}}
  }
  async Task LoadSelectedCover(GameItem g,CancellationToken ct){try{var cover=await store.Cover(g.AppId,g.CoverUrl,ct);ct.ThrowIfCancellationRequested();g=library.Games.FirstOrDefault(x=>x.AppId==g.AppId)??g;g.CoverPath=cover;if(selected?.AppId==g.AppId)DetailCover.Source=g.Cover;}catch(OperationCanceledException){}catch{}}
- static void ApplyInfo(GameItem g,AppInfo i){g.Name=i.Name;g.Kind=i.Type;g.IsFree=i.IsFree;g.CoverUrl=i.Header;g.ParentId=i.ParentId;}
+  void ApplyDlcRelations(GameItem parent,AppInfo info){
+   var ids=info.DlcIds.ToHashSet();foreach(var g in library.Games.Where(g=>ids.Contains(g.AppId))){g.Kind="dlc";g.ParentId=parent.AppId;}
+  }
+  static void ApplyInfo(GameItem g,AppInfo i){g.Name=i.Name;g.Kind=i.Type;g.IsFree=i.IsFree;g.CoverUrl=i.Header;g.ParentId=i.ParentId>0?i.ParentId:i.Type=="dlc"?g.ParentId:0;}
  void ShowSelected(){
   if(selected==null)return;
-  DetailName.Text=selected.Name;DetailMeta.Text=$"APP {selected.AppId} / {selected.TypeLabel}\n{(selected.IsFree?"商店标记免费":"价格信息以商店为准")}";
+  DetailName.Text=selected.Name;DetailMeta.Text=$"APP {selected.AppId} / {selected.TypeLabel}\n{(selected.Kind=="dlc"?selected.ParentId>0?$"所属本体 APP {selected.ParentId}":"所属游戏待查询":selected.IsFree?"商店标记免费":"价格信息以商店为准")}";ParentGameButton.Visibility=selected.Kind=="dlc"&&selected.ParentId>0?Visibility.Visible:Visibility.Collapsed;
   DetailCover.Source=selected.Cover;SourceIdBox.Text=selected.SourceId>0?selected.SourceId.ToString():"";
   AutoMappingLabel.Text=selected.SourceId>0?$"免费替代 ID / {selected.SourceId} · 已分配":"加入时自动分配免费 ID";
-  AddButton.Content=library.Games.Any(g=>g.AppId==selected.AppId)?"已加入 · 启用":"加入游戏库";AddButton.IsEnabled=true;DownloadGameButton.IsEnabled=selected.Kind!="dlc";LanGameButton.IsEnabled=selected.Kind!="dlc";var task=new GameDownloadService(storage).Status(selected.AppId);DownloadGameButton.Content=task.Total>0&&task.Event!="complete"?$"↓ 继续下载 · {task.Completed/task.Total*100:F1}%":"↓ 下载 / 安装游戏";ApplyMappingButton.IsEnabled=true;RemoveButton.IsEnabled=library.Games.Any(g=>g.AppId==selected.AppId);
+  AddButton.Content=library.Games.Any(g=>g.AppId==selected.AppId)?"已加入 · 启用":"加入游戏库";AddButton.IsEnabled=true;DownloadGameButton.IsEnabled=true;LanGameButton.IsEnabled=selected.Kind!="dlc";var task=new GameDownloadService(storage).Status(selected.Kind=="dlc"&&selected.ParentId>0?selected.ParentId:selected.AppId);DownloadGameButton.Content=selected.Kind=="dlc"?"↓ 下载此 DLC":task.Total>0&&task.Event!="complete"?$"↓ 继续下载 · {task.Completed/task.Total*100:F1}%":"↓ 下载 / 安装游戏";ApplyMappingButton.IsEnabled=true;RemoveButton.IsEnabled=library.Games.Any(g=>g.AppId==selected.AppId);
  }
  GameItem Bookmark(GameItem g){
   var existing=library.Games.FirstOrDefault(x=>x.AppId==g.AppId);if(existing!=null)return existing;
@@ -149,7 +181,12 @@ public partial class MainWindow : Window {
  }
  readonly Dictionary<uint,LanWindow> lanWindows=[];
  void OpenLanGame(object sender,RoutedEventArgs e){if(selected==null)return;if(lanWindows.TryGetValue(selected.AppId,out var existing)){existing.Activate();return;}try{var window=new LanWindow(storage,library.Settings,selected.Copy()){Owner=this};var id=selected.AppId;lanWindows[id]=window;window.Closed+=(_,_)=>lanWindows.Remove(id);window.Show();}catch(Exception error){Notify(error.Message,true);}}
- void DownloadGame(object sender,RoutedEventArgs e){if(selected!=null)OpenDownload(selected.Copy());}
+ void DownloadGame(object sender,RoutedEventArgs e)=>BeginSelectedDownload();
+ async void OpenParentGame(object sender,RoutedEventArgs e){
+  if(selected==null||selected.ParentId==0)return;var id=selected.ParentId;
+  var parent=library.Games.FirstOrDefault(g=>g.AppId==id)??missingDlcParents.GetValueOrDefault(id)??new GameItem{AppId=id,Name=$"游戏本体 · APP {id}"};
+  await SelectGame(parent);
+ }
  void Enable(GameItem g,string? explicitId=null){
   uint old=g.SourceId;bool enabled=g.Enabled;
   try{
@@ -186,7 +223,11 @@ public partial class MainWindow : Window {
   if(selected==null)return;library.Games.RemoveAll(g=>g.AppId==selected.AppId);selected.SourceId=0;selected.Enabled=false;
   SaveLocal();Refresh();ShowSelected();Notify("已从本地游戏库移除，替代 ID 已释放。保存配置后更新 Steam 中的映射。");
  }
- void UpdateDlcCount(){DlcCountLabel.Text=$"已选 {chosenDlcs.Count} / {dlcs.Count}";AddDlcButton.IsEnabled=chosenDlcs.Count>0;SelectAllDlcButton.IsEnabled=dlcs.Count>0;ClearDlcButton.IsEnabled=dlcs.Count>0;}
+ void RemoveLibraryDlc(object sender,RoutedEventArgs e){
+  e.Handled=true;if(((Button)sender).Tag is not GameItem g)return;library.Games.RemoveAll(item=>item.AppId==g.AppId);g.SourceId=0;g.Enabled=false;
+  SaveLocal();Refresh();if(selected?.AppId==g.AppId){selected=g;ShowSelected();}Notify("已移除此 DLC，所属游戏和其他 DLC 均保留；保存配置后生效。");
+ }
+ void UpdateDlcCount(){DlcCountLabel.Text=$"已选 {chosenDlcs.Count} / {dlcs.Count}";AddDlcButton.IsEnabled=chosenDlcs.Count>0;DownloadDlcButton.IsEnabled=chosenDlcs.Count>0;SelectAllDlcButton.IsEnabled=dlcs.Count>0;ClearDlcButton.IsEnabled=dlcs.Count>0;}
  void DlcChecked(object sender,RoutedEventArgs e){if(((CheckBox)sender).Tag is GameItem g&&dlcs.Contains(g)){g.Enabled=true;chosenDlcs.Add(g.AppId);UpdateDlcCount();}}
  void DlcUnchecked(object sender,RoutedEventArgs e){if(((CheckBox)sender).Tag is GameItem g&&dlcs.Contains(g)){g.Enabled=false;chosenDlcs.Remove(g.AppId);UpdateDlcCount();}}
  void SelectAllDlcs(object sender,RoutedEventArgs e){bool all=((Button)sender).Tag?.ToString()=="True";LibraryEditor.SelectDlcs(dlcs,all);chosenDlcs.Clear();if(all)foreach(var d in dlcs)chosenDlcs.Add(d.AppId);UpdateDlcCount();}

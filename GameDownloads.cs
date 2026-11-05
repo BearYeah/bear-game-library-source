@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 namespace NovaLibrary;
 public sealed class DownloadUpdate {
  public string Event {get;set;}="";public string Message {get;set;}="";public string Directory {get;set;}="";
@@ -16,8 +17,21 @@ public static class GameDownloadPaths {
   return Path.GetFileName(full).Equals("steamapps",StringComparison.OrdinalIgnoreCase)?Path.Combine(full,"common"):Path.Combine(full,"steamapps","common");
  }
  public static string LibraryRoot(string input)=>Path.GetDirectoryName(Path.GetDirectoryName(CommonDirectory(input)))!;
+ public static (string Library,string Directory)? Installed(uint appid,IEnumerable<string> libraries){
+  foreach(var library in libraries.Where(p=>p.Length>0).Distinct(StringComparer.OrdinalIgnoreCase)){
+   var manifest=Path.Combine(library,"steamapps",$"appmanifest_{appid}.acf");if(!File.Exists(manifest))continue;
+   var match=Regex.Match(File.ReadAllText(manifest),"\"installdir\"\\s*\"([^\"]+)\"");if(!match.Success)continue;
+   var directory=Path.Combine(CommonDirectory(library),match.Groups[1].Value.Replace("\\\\","\\"));
+   if(System.IO.Directory.Exists(directory))return (library,directory);
+  }return null;
+ }
 }
-public sealed record GameDownloadRequest(uint AppId,string Name,string Steam,string Library,string Language,int Jobs,string Proxy,bool LocalSni=true,bool DownloadUseProxy=false);
+public sealed class DownloadDlcChoice {
+ public uint AppId {get;set;}
+ public string Name {get;set;}="";
+ public bool Selected {get;set;}
+}
+public sealed record GameDownloadRequest(uint AppId,string Name,string Steam,string Library,string Language,int Jobs,string Proxy,bool LocalSni=true,bool DownloadUseProxy=false,uint[]? DlcIds=null,bool DlcOnly=false,string InstallDirectory="");
 public sealed class GameDownloadService(Storage storage) {
  static readonly JsonSerializerOptions EventJson=new(){PropertyNameCaseInsensitive=true};
  string Folder(uint appid)=>Path.Combine(storage.Root,"downloads",appid.ToString());
@@ -28,18 +42,20 @@ public sealed class GameDownloadService(Storage storage) {
   var journal=Path.Combine(folder,"chunks.jsonl");if(File.Exists(journal)){var chunks=new Dictionary<string,long>();using var journalStream=new FileStream(journal,FileMode.Open,FileAccess.Read,FileShare.ReadWrite|FileShare.Delete);using var journalReader=new StreamReader(journalStream);while(journalReader.ReadLine() is { } line){try{using var item=JsonDocument.Parse(line);chunks[item.RootElement.GetProperty("key").GetString()!]=item.RootElement.GetProperty("bytes").GetInt64();}catch(JsonException){break;}}saved.Completed=chunks.Values.Sum();}
   return saved;
  }
- public (string Directory,bool Installed) RemovalInfo(uint appid){
-  var folder=Folder(appid);var job=Path.Combine(folder,"job.json");if(!File.Exists(job))return ("",false);
+ public (string Directory,bool Installed,bool SharedDirectory) RemovalInfo(uint appid){
+  var folder=Folder(appid);var job=Path.Combine(folder,"job.json");if(!File.Exists(job))return ("",false,false);
   using var document=JsonDocument.Parse(File.ReadAllText(job));var library=document.RootElement.GetProperty("library").GetString()!;var status=Status(appid);var destination=status.Directory;
+  bool shared=document.RootElement.TryGetProperty("dlc_only",out var dlcOnly)&&dlcOnly.GetBoolean();
   var plan=Path.Combine(folder,"plan.json");if(File.Exists(plan)){using var saved=JsonDocument.Parse(File.ReadAllText(plan));library=saved.RootElement.GetProperty("library").GetString()!;destination=saved.RootElement.GetProperty("destination").GetString()!;}
-  if(destination.Length==0)return ("",false);
+  if(shared){if(document.RootElement.TryGetProperty("install_dir",out var install)&&!string.IsNullOrWhiteSpace(install.GetString()))destination=install.GetString()!;return(destination,true,true);}
+  if(destination.Length==0)return ("",false,false);
   var common=GameDownloadPaths.CommonDirectory(library);destination=Path.GetFullPath(destination);
   if(!destination.StartsWith(common+Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase))throw new InvalidOperationException("任务目录不在记录的 steamapps/common 中，无法删除游戏文件。");
-  return (destination,File.Exists(Path.Combine(library,"steamapps",$"appmanifest_{appid}.acf"))||status.Event=="complete");
+  return (destination,File.Exists(Path.Combine(library,"steamapps",$"appmanifest_{appid}.acf"))||status.Event=="complete",false);
  }
  public bool Remove(uint appid,bool deleteFiles){
   var info=RemovalInfo(appid);bool removed=false;
-  if(deleteFiles&&!info.Installed&&info.Directory.Length>0&&System.IO.Directory.Exists(info.Directory)){System.IO.Directory.Delete(info.Directory,true);removed=true;}
+  if(deleteFiles&&!info.Installed&&!info.SharedDirectory&&info.Directory.Length>0&&System.IO.Directory.Exists(info.Directory)){System.IO.Directory.Delete(info.Directory,true);removed=true;}
   var folder=Path.GetFullPath(Folder(appid));var downloads=Path.GetFullPath(Path.Combine(storage.Root,"downloads"))+Path.DirectorySeparatorChar;
   if(!folder.StartsWith(downloads,StringComparison.OrdinalIgnoreCase))throw new InvalidOperationException("下载记录目录无效。");
   if(System.IO.Directory.Exists(folder))System.IO.Directory.Delete(folder,true);return removed;
@@ -55,7 +71,7 @@ public sealed class GameDownloadService(Storage storage) {
  public async Task<string> Run(GameDownloadRequest request,IProgress<DownloadUpdate> progress,CancellationToken ct){
   var folder=Folder(request.AppId);System.IO.Directory.CreateDirectory(folder);var job=Path.Combine(folder,"job.json");var status=Path.Combine(folder,"status.json");var saved=SavedProgress(request.AppId);
   await new SteamNetworkRoutes(storage,new Settings{Proxy=request.Proxy}).Refresh(ct);
-  await File.WriteAllTextAsync(job,JsonSerializer.Serialize(new{appid=request.AppId,name=request.Name,steam=request.Steam,library=request.Library,language=request.Language,jobs=request.Jobs,download_proxy=request.DownloadUseProxy?"inherit":"direct",resume=true,cache=Path.Combine(storage.Root,"downloads","cache"),state=Path.Combine(folder,"chunks.json"),network_routes=SteamNetworkRoutes.CacheFile(storage),local_sni=request.LocalSni}),ct);
+  await File.WriteAllTextAsync(job,JsonSerializer.Serialize(new{appid=request.AppId,name=request.Name,steam=request.Steam,library=request.Library,language=request.Language,jobs=request.Jobs,download_proxy=request.DownloadUseProxy?"inherit":"direct",resume=true,cache=Path.Combine(storage.Root,"downloads","cache"),state=Path.Combine(folder,"chunks.json"),network_routes=SteamNetworkRoutes.CacheFile(storage),local_sni=request.LocalSni,dlc_ids=request.DlcIds??[],dlc_only=request.DlcOnly,install_dir=request.InstallDirectory}),ct);
   var worker=await Task.Run(Worker,ct);ct.ThrowIfCancellationRequested();using var process=new Process{StartInfo=Command(worker,job,request.Proxy)};process.Start();
   using var cancellation=ct.Register(()=>{try{process.Kill(entireProcessTree:true);}catch(InvalidOperationException){}});
   var errorOutput=process.StandardError.ReadToEndAsync();string directory="",failure="";bool complete=false;

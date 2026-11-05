@@ -1,4 +1,4 @@
-<Window x:Class="NovaLibrary.DownloadWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="下载 / 安装游戏" Width="660" Height="760" MinWidth="600" MinHeight="700" WindowStartupLocation="CenterOwner" Background="#0E1524" Foreground="#EAF0F9" Closing="WindowClosing">
+<Window x:Class="NovaLibrary.DownloadWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="下载 / 安装游戏" Width="700" Height="820" MinWidth="620" MinHeight="700" WindowStartupLocation="CenterOwner" Background="#0E1524" Foreground="#EAF0F9" Closing="WindowClosing">
  <Window.Resources>
   <Style TargetType="TextBlock"><Setter Property="Foreground" Value="#D8E3F3"/><Setter Property="FontFamily" Value="Microsoft YaHei UI"/><Setter Property="TextWrapping" Value="Wrap"/></Style>
   <Style TargetType="Button"><Setter Property="Padding" Value="15,9"/><Setter Property="Background" Value="#223751"/><Setter Property="Foreground" Value="#EAF0F9"/><Setter Property="BorderBrush" Value="#426078"/></Style>
@@ -6,17 +6,30 @@
  </Window.Resources>
  <Grid Margin="26"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
   <StackPanel><TextBlock Text="DOWNLOAD / INSTALL" Foreground="#7DE7FF" FontFamily="Consolas" FontSize="12"/><TextBlock x:Name="GameName" FontSize="24" FontWeight="Bold" Margin="0,10,0,6"/><TextBlock x:Name="AppIdLabel" FontSize="11" Foreground="#8F9DB3"/></StackPanel>
-  <StackPanel x:Name="OptionsPanel" Grid.Row="1" Margin="0,23,0,20">
-   <TextBlock Text="游戏文件目录（Steam\steamapps\common）" FontSize="13"/>
-   <Grid Margin="0,8,0,15"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><ComboBox x:Name="LibraryBox" IsEditable="True" LostFocus="CommonPathChanged"/><Button Grid.Column="1" Content="选择目录" Click="BrowseLibrary" Margin="8,0,0,0"/></Grid>
+  <ScrollViewer Grid.Row="1" MaxHeight="360" VerticalScrollBarVisibility="Auto" Margin="0,23,0,20"><StackPanel x:Name="OptionsPanel">
+   <StackPanel x:Name="LibraryPanel"><TextBlock Text="游戏文件目录（Steam\steamapps\common）" FontSize="13"/>
+   <Grid Margin="0,8,0,15"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><ComboBox x:Name="LibraryBox" IsEditable="True" LostFocus="CommonPathChanged"/><Button Grid.Column="1" Content="选择目录" Click="BrowseLibrary" Margin="8,0,0,0"/></Grid></StackPanel>
+   <StackPanel x:Name="ExistingGamePanel" Visibility="Collapsed" Margin="0,0,0,15">
+    <TextBlock Text="已安装的本体目录（DLC 自动放入此处）" FontSize="12"/>
+    <Grid Margin="0,7,0,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBox x:Name="InstalledGameBox" Padding="8" VerticalContentAlignment="Center"/><Button Grid.Column="1" Content="选择本体目录" Click="BrowseInstalledGame" Margin="8,0,0,0"/></Grid>
+   </StackPanel>
    <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="18"/><ColumnDefinition/></Grid.ColumnDefinitions>
     <StackPanel><TextBlock Text="游戏语言" FontSize="12" Margin="0,0,0,7"/><ComboBox x:Name="LanguageBox" SelectedIndex="0"><ComboBoxItem Content="简体中文" Tag="schinese"/><ComboBoxItem Content="English" Tag="english"/><ComboBoxItem Content="繁體中文" Tag="tchinese"/><ComboBoxItem Content="日本語" Tag="japanese"/></ComboBox></StackPanel>
     <StackPanel Grid.Column="2"><TextBlock Text="并发下载数" FontSize="12" Margin="0,0,0,7"/><ComboBox x:Name="JobsBox" SelectedIndex="0"><ComboBoxItem Content="自动（8–32）" Tag="0"/><ComboBoxItem Content="4" Tag="4"/><ComboBoxItem Content="12" Tag="12"/><ComboBoxItem Content="24" Tag="24"/><ComboBoxItem Content="32" Tag="32"/></ComboBox></StackPanel>
    </Grid>
    <Grid Margin="0,12,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition/></Grid.ColumnDefinitions><TextBlock Text="游戏内容连接" FontSize="12" VerticalAlignment="Center" Margin="0,0,14,0"/><ComboBox x:Name="TransferProxyBox" Grid.Column="1" SelectedIndex="0"><ComboBoxItem Content="直连 Steam 内容节点（推荐）" Tag="direct"/><ComboBoxItem Content="跟随设置中的代理" Tag="inherit"/></ComboBox></Grid>
+   <Expander x:Name="DlcPanel" Header="DLC / 可选内容" Foreground="#B6A0E8" Margin="0,14,0,0" Visibility="Collapsed">
+    <StackPanel Margin="0,9,0,0">
+     <CheckBox x:Name="IncludeGameBox" Content="同时下载游戏本体" IsChecked="True" Foreground="#EAF0F9" Checked="DlcModeChanged" Unchecked="DlcModeChanged" Margin="0,0,0,10"/>
+     <TextBox x:Name="DlcDownloadFilter" ToolTip="筛选 DLC 名称或 AppID" TextChanged="DlcDownloadFilterChanged" Margin="0,0,0,8" Padding="7"/>
+     <ScrollViewer MaxHeight="140" VerticalScrollBarVisibility="Auto"><ItemsControl x:Name="DlcOptionsItems"><ItemsControl.ItemTemplate><DataTemplate><CheckBox Tag="{Binding}" IsChecked="{Binding Selected,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" Content="{Binding Name}" Foreground="#D8E3F3" Margin="0,4" Checked="DlcChoiceChanged" Unchecked="DlcChoiceChanged"><CheckBox.ContentTemplate><DataTemplate><TextBlock Text="{Binding}" TextWrapping="Wrap" MaxWidth="480"/></DataTemplate></CheckBox.ContentTemplate></CheckBox></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></ScrollViewer>
+     <TextBlock x:Name="DlcSelectionHint" Foreground="#94A8C2" FontSize="11" Margin="0,8,0,0"/>
+     <TextBlock Text="开始时确认所选 DLC 是否有可用文件。已包含在本体内的内容无需单独下载。" Foreground="#8496B0" FontSize="11" Margin="0,6,0,0"/>
+    </StackPanel>
+   </Expander>
    <TextBlock x:Name="InstallPathHint" Text="" Foreground="#7DE7FF" FontSize="11" Margin="0,10,0,0"/>
    <TextBlock Text="下载前请退出 Steam。完成后自动登记为已安装，重新打开 Steam 查看。缺少所选语言时使用英语内容。" Foreground="#8F9DB3" FontSize="11" Margin="0,13,0,0"/>
-  </StackPanel>
+  </StackPanel></ScrollViewer>
   <StackPanel Grid.Row="2">
    <Border Background="#152338" Padding="15" CornerRadius="8"><StackPanel><TextBlock x:Name="StageLabel" Text="准备就绪" FontSize="14"/><ProgressBar x:Name="DownloadBar" Height="7" Minimum="0" Maximum="100" Foreground="#7DE7FF" Background="#27354B" Margin="0,13,0,8"/><TextBlock x:Name="DownloadSpeedLabel" Text="下载速度  0 B/s" FontSize="21" FontWeight="SemiBold" Foreground="#7DE7FF" Margin="0,4,0,9"/><TextBlock x:Name="ProgressLabel" Text="0 B / — · 等待开始" Foreground="#9BB7D2" FontFamily="Consolas" FontSize="11"/><TextBlock x:Name="DestinationLabel" Foreground="#8496B0" FontSize="10" Margin="0,9,0,0"/></StackPanel></Border>
    <Expander Header="下载记录" Foreground="#9BB7D2" Margin="0,14,0,0"><TextBox x:Name="LogBox" IsReadOnly="True" Height="100" VerticalScrollBarVisibility="Auto" TextWrapping="Wrap" Background="#0B1220" Foreground="#A3B5CC" BorderThickness="0" Padding="8" FontSize="11"/></Expander>

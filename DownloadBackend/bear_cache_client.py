@@ -88,21 +88,21 @@ class BearCache:
                 os.replace(temp, self.identity_file)
                 self.token = token
 
-    def resolve(self, appid, language):
+    def resolve(self, appid, language, dlc_ids=()):
         self.identify()
         return self.request('POST', '/v1/games/%d/resolve' % appid,
-                            json_body=dict(language=language)).json()
+                            json_body=dict(language=language, dlc_ids=list(dlc_ids))).json()
 
     def manifest(self, appid, depot, gid):
         return self.request('GET', '/v1/games/%d/manifests/%d/%d' % (appid, depot, gid)).content
 
-    def prepare(self, appid, language, progress):
+    def prepare(self, appid, language, progress, dlc_ids=()):
         if not self.token:
             self.identify()
         started = time.monotonic()
         while time.monotonic()-started < 180:
             result = self.request('POST', '/v1/games/%d/prepare' % appid,
-                                  json_body=dict(language=language)).json()
+                                  json_body=dict(language=language, dlc_ids=list(dlc_ids))).json()
             if result['status'] == 'ready':
                 return result
             progress(int(time.monotonic()-started))

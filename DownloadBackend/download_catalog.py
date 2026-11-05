@@ -1,10 +1,15 @@
+import copy
 import re
 """Windows/public depot selection shared by Bear and its metadata cache server."""
 
-def select_depots(info, language):
+def select_depots(info, language, dlc_ids=(), dlc_only=False):
+    selected = {str(appid) for appid in dlc_ids}
     choices = []
     for number, item in info.get("depots", {}).items():
-        if not number.isdigit() or item.get("dlcappid"):
+        if not number.isdigit():
+            continue
+        owner = str(item.get("dlcappid") or "")
+        if (owner and owner not in selected) or (not owner and dlc_only):
             continue
         config = item.get("config") or {}
         platforms = config.get("oslist", "").split(",")
@@ -12,11 +17,25 @@ def select_depots(info, language):
             continue
         public = (item.get("manifests") or {}).get("public") or {}
         if public.get("gid"):
-            choices.append((int(number), item, public))
-    languages = {row[1].get("config", {}).get("language") for row in choices}
-    chosen_language = language if language in languages else "english"
-    return {number: (item, public) for number, item, public in choices
-            if item.get("config", {}).get("language") in (None, "", chosen_language)}
+            choices.append((int(number), item, public, owner))
+    languages = {}
+    for _, item, _, owner in choices:
+        languages.setdefault(owner, set()).add(item.get("config", {}).get("language"))
+    return {number: (item, public) for number, item, public, owner in choices
+            if item.get("config", {}).get("language") in
+            (None, "", language if language in languages[owner] else "english")}
+
+
+def merge_dlc_depots(info, dlc_info, dlc_appid, parent_appid):
+    """Use the selected DLC's public metadata to identify its own depots."""
+    target = info.setdefault("depots", {})
+    for depot, item in dlc_info.get("depots", {}).items():
+        if not depot.isdigit() or str(item.get("depotfromapp", "")) == str(parent_appid):
+            continue
+        row = target.setdefault(depot, copy.deepcopy(item))
+        row.setdefault("dlcappid", str(dlc_appid))
+        if not (row.get("manifests") or {}).get("public") and (item.get("manifests") or {}).get("public"):
+            row.setdefault("manifests", {})["public"] = copy.deepcopy(item["manifests"]["public"])
 
 
 def supplement_depots(info, catalog):

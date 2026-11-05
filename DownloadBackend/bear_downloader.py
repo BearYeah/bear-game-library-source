@@ -16,7 +16,7 @@ import urllib.error
 
 import requests
 import steam_manifest as core
-from download_catalog import select_depots, supplement_depots
+from download_catalog import select_depots, supplement_depots, merge_dlc_depots
 from bear_cache_client import BearCache, CacheUnavailable, DailyLimit, DEFAULT_SERVER
 from steam_network import SteamHTTP
 from steam_cdn import discover, ContentPool, TransferMeter, AdaptiveConcurrency, CdnAuthorization
@@ -183,15 +183,26 @@ def waiting(message, phase="metadata"):
         thread.join()
 
 
+def download_selection(job):
+    return dict(dlc_ids=sorted({int(appid) for appid in job.get("dlc_ids", [])}),
+                dlc_only=bool(job.get("dlc_only", False)),
+                install_dir=str(Path(job["install_dir"]).resolve()) if job.get("install_dir") else "")
+
+
+
 def resolve_plan(job):
     appid = job["appid"]
+    selection = download_selection(job)
+    selection_args = dict(dlc_ids=selection["dlc_ids"]) if selection["dlc_ids"] else {}
+    if selection["dlc_only"] and not selection["dlc_ids"]:
+        raise RuntimeError("请先选择需要下载的 DLC。")
     server = None
     server_reply = None
     if os.environ.get("BEAR_DOWNLOAD_SERVER", DEFAULT_SERVER):
         server = BearCache(job["cache"], os.environ.get("BEAR_DOWNLOAD_PROXY", ""))
         try:
             with waiting("正在查询下载资料…"):
-                server_reply = server.resolve(appid, job["language"])
+                server_reply = server.resolve(appid, job["language"], **selection_args)
         except DailyLimit:
             raise
         except CacheUnavailable:
@@ -204,7 +215,27 @@ def resolve_plan(job):
             info = json.loads(metadata_file.read_text(encoding="utf-8")) if directory and metadata_file.is_file() else None
         if not info:
             raise RuntimeError("未找到 AppID %d 的公开游戏资料，请确认 AppID 是否正确。" % appid)
-    chosen = select_depots(info, job["language"])
+    dlc_info = {}
+    for dlc_appid in selection["dlc_ids"]:
+        if any(str(item.get("dlcappid", "")) == str(dlc_appid)
+               for depot, item in info.get("depots", {}).items() if depot.isdigit()):
+            continue
+        directory = os.environ.get("BEAR_METADATA_DIR", "")
+        metadata_file = Path(directory) / (str(dlc_appid) + ".info.json")
+        dlc_info[dlc_appid] = json.loads(metadata_file.read_text(encoding="utf-8")) if directory and metadata_file.is_file() else {}
+        merge_dlc_depots(info, dlc_info[dlc_appid], dlc_appid, appid)
+
+    def choose():
+        for dlc_appid, metadata in dlc_info.items():
+            merge_dlc_depots(info, metadata, dlc_appid, appid)
+        result = select_depots(info, job["language"], selection["dlc_ids"], selection["dlc_only"])
+        owners = {str(item.get("dlcappid", "")) for item, _ in result.values()}
+        missing = [str(dlc_appid) for dlc_appid in selection["dlc_ids"] if str(dlc_appid) not in owners]
+        if missing:
+            raise RuntimeError("所选 DLC 暂不能下载：%s（没有适用的独立 Windows public 内容）。" % ", ".join(missing))
+        return result
+
+    chosen = choose()
     if not chosen:
         raise RuntimeError("没有找到可下载的 Windows public 内容。")
     config = Path(job["steam"]) / "config" / "config.vdf"
@@ -225,7 +256,7 @@ def resolve_plan(job):
         supplement_tried = True
         try:
             server_reply = server.prepare(appid, job["language"],
-                lambda seconds:emit("stage", phase="manifest", message="正在补充下载资料（已等待 %d 秒）…" % seconds))
+                lambda seconds:emit("stage", phase="manifest", message="正在补充下载资料（已等待 %d 秒）…" % seconds), **selection_args)
         except CacheUnavailable as error:
             supplement_error = str(error)
         else:
@@ -260,15 +291,22 @@ def resolve_plan(job):
         reply = load_supplement()
         if reply and reply["status"] == "ready":
             info = reply['info']
-            chosen = select_depots(info, job['language'])
+            chosen = choose()
     missing = [str(d) for d in chosen if d not in keys]
     if missing:
+        dlc_missing = sorted({str(chosen[int(depot)][0]["dlcappid"]) for depot in missing
+                              if chosen[int(depot)][0].get("dlcappid")})
+        if dlc_missing:
+            raise RuntimeError("所选 DLC 暂不能下载：%s（缺少内容 %s 的解密资料）。" %
+                               (", ".join(dlc_missing), ", ".join(missing)))
         raise RuntimeError(supplement_error or "暂时没有这些内容的解密资料：" + ", ".join(missing))
     game_name = info.get("common", {}).get("name") or job["name"] or str(appid)
     install_name = info.get("config", {}).get("installdir") or re.sub(r'[\\/:*?"<>|]', "_", game_name)
     common = (Path(job["library"]) / "steamapps" / "common").resolve()
-    destination = (common / install_name).resolve()
-    if not destination.is_relative_to(common) or destination == common:
+    destination = Path(selection["install_dir"]) if selection["install_dir"] else (common / install_name).resolve()
+    if selection["dlc_only"] and not destination.is_dir():
+        raise RuntimeError("下载 DLC 前，请先选择已安装的本体游戏目录。")
+    if not selection["install_dir"] and (not destination.is_relative_to(common) or destination == common):
         raise RuntimeError("游戏安装目录无效。")
     depots = {}
     for depot, (_, public) in chosen.items():
@@ -294,14 +332,28 @@ def resolve_plan(job):
                         alternate=supplement_manifest if server else None)
                 source = 'public'
             except (RuntimeError, OSError, requests.RequestException) as error:
+                owner = chosen[depot][0].get("dlcappid")
+                if owner:
+                    raise RuntimeError("所选 DLC %s 暂不能下载：内容 %d 缺少版本 %d 的清单。" % (owner, depot, gid)) from error
                 raise RuntimeError(supplement_error or "暂时无法取得所需清单，请稍后重试。") from error
-        manifest = core.parse_manifest(blob, keys[depot])
+        try:
+            manifest = core.parse_manifest(blob, keys[depot])
+        except (RuntimeError, ValueError) as error:
+            owner = chosen[depot][0].get("dlcappid")
+            if owner:
+                raise RuntimeError("所选 DLC %s 暂不能下载：内容 %d 的清单与解密资料不匹配。" % (owner, depot)) from error
+            raise
         emit("stage", phase="manifest", message="内容 %d 的清单已准备好。" % depot)
-        depots[depot] = dict(gid=gid, key=keys[depot], blob=blob, manifest=manifest, source=source)
+        depots[depot] = dict(gid=gid, key=keys[depot], blob=blob, manifest=manifest, source=source,
+                             dlcappid=int(chosen[depot][0].get("dlcappid") or 0))
     build = (info.get("depots", {}).get("branches", {}).get("public") or {}).get("buildid") or "0"
     plan = dict(appid=appid, name=game_name, installdir=install_name, destination=destination,
-                buildid=build, depots=depots, language=next((item.get("config", {}).get("language") for item, _ in chosen.values() if item.get("config", {}).get("language")), job["language"]))
-    if server and (not server_reply or server_reply["status"] != "ready"):
+                buildid=build, depots=depots, language=next((item.get("config", {}).get("language") for item, _ in chosen.values() if item.get("config", {}).get("language")), job["language"]),
+                **selection)
+    if selection["dlc_ids"]:
+        emit("stage", phase="manifest", message="所选 DLC 的清单与解密资料已就绪：" +
+             ", ".join(str(dlc_appid) for dlc_appid in selection["dlc_ids"]))
+    if server and not selection["dlc_only"] and (not server_reply or server_reply["status"] != "ready"):
         try:
             with waiting("正在登记已取得的下载资料…"):
                 if not server.token:
@@ -326,6 +378,8 @@ def download_plan(plan, state_file, jobs):
     root = plan["destination"]
     root.mkdir(parents=True, exist_ok=True)
     identity = dict(path=str(root), depots={str(d): row["gid"] for d, row in plan["depots"].items()})
+    if plan.get("dlc_ids") or plan.get("dlc_only"):
+        identity.update(dlc_ids=plan.get("dlc_ids", []), dlc_only=plan.get("dlc_only", False))
     state = json.loads(state_file.read_text(encoding="utf-8")) if state_file.exists() else {}
     journal_file = state_file.with_suffix(".jsonl")
     completed = set(state.get("completed", [])) if state.get("identity") == identity else set()
@@ -495,6 +549,10 @@ def register_install(job, plan):
         (depotcache / ("%d_%d.manifest" % (depot, row["gid"]))).write_bytes(row["blob"])
         installed[str(depot)] = dict(manifest=str(row["gid"]), size=str(row["manifest"]["total_size"]))
     merge_keys(steam / "config" / "config.vdf", {d: row["key"] for d, row in plan["depots"].items()})
+    if plan.get("dlc_only"):
+        emit("complete", message="所选 DLC 文件下载完成，已保留本体的 Steam 安装记录。",
+             directory=str(plan["destination"]))
+        return
     size = str(sum(row["manifest"]["total_size"] for row in plan["depots"].values()))
     app = dict(appid=str(plan["appid"]), universe="1", LauncherPath=str(steam / "steam.exe"),
                name=plan["name"], StateFlags="4", installdir=plan["installdir"],
@@ -516,20 +574,22 @@ def cached_plan(job):
     if job.get("resume", True) and file.exists():
         saved = json.loads(file.read_text(encoding="utf-8"))
         if (saved["library"] == job["library"] and saved["requested_language"] == job["language"]
-                and saved["appid"] == job["appid"]):
+                and saved["appid"] == job["appid"] and download_selection(saved) == download_selection(job)):
             emit("stage", phase="manifest", message="正在恢复上次的下载任务…")
             result = {k: saved[k] for k in ("appid", "name", "installdir", "buildid", "language")}
             result["destination"] = Path(saved["destination"])
+            result.update(download_selection(saved))
             result["depots"] = {}
             for depot, row in saved["depots"].items():
                 blob = Path(row["manifest_file"]).read_bytes()
                 result["depots"][int(depot)] = dict(gid=row["gid"], key=row["key"], blob=blob,
-                                                   manifest=core.parse_manifest(blob, row["key"]))
+                                                    manifest=core.parse_manifest(blob, row["key"]), dlcappid=row.get("dlcappid", 0))
             return result
     plan = resolve_plan(job)
     saved = {k: plan[k] for k in ("appid", "name", "installdir", "buildid", "language")}
     saved.update(destination=str(plan["destination"]), library=job["library"], requested_language=job["language"],
-                 depots={str(depot): dict(gid=row["gid"], key=row["key"],
+                 **download_selection(job),
+                 depots={str(depot): dict(gid=row["gid"], key=row["key"], dlcappid=row.get("dlcappid", 0),
                                           manifest_file=core.manifest_cache_path(depot, row["gid"]))
                          for depot, row in plan["depots"].items()})
     file.parent.mkdir(parents=True, exist_ok=True)
@@ -541,6 +601,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--job")
     parser.add_argument("--self-test")
+    parser.add_argument("--plan-only", action="store_true")
     args = parser.parse_args()
     if args.self_test:
         import download_tests
@@ -551,6 +612,8 @@ def main():
     try:
         plan = cached_plan(job)
         emit("plan", name=plan["name"], directory=str(plan["destination"]), depots=len(plan["depots"]))
+        if args.plan_only:
+            return 0
         configure_content(job)
         download_plan(plan, Path(job["state"]), job["jobs"])
         register_install(job, plan)
@@ -560,6 +623,7 @@ def main():
         return 1
     finally:
         core.save_code_cache()
+
 
 
 if __name__ == "__main__":
