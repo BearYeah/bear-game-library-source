@@ -1,0 +1,150 @@
+{
+  "ProfileId": "greenluma-2026-1.8.7-keyvalues-v2",
+  "ReviewedClientSha256": "253e0a11a4415b38c78a42f7bdd6ecc426455f06c1ba6453a48090df3142dbbc",
+  "Functions": [
+    {
+      "Name": "integer-extractor",
+      "AnchorOffset": 0,
+      "Bytes": "48895c2410574883ec304d85c0488d7c24408bda4c8bc9490f45f84533d24489174885c90f84b30100008b51108bc2c1e81983e00f83f80a0f87910100004c8d05eb742dff418b8c80c08cd2004903c8ffe185d279034d8b094c895424504538117514b80300000089078bc3488b5c24484883c4305fc3488d542450498bc9ff15635d46008bd8488b4424500fb608f6d91bc083e00289078bc3488b5c24484883c4305fc385d279034d8b094c89542458664539117513c707030000008bc3488b5c24484883c4305fc341b80a000000488d542458498bc9e8674d2a00488b4c24580fb71166f7da1bc983e102890f488b5c24484883c4305fc3498b49084c895424204438117514b80300000089078bc3488b5c24484883c4305fc3488d542420ff15c15c4600488b4c24208bd80fb611f6da1bc083e00289078bc3488b5c24484883c4305fc3f3410f2c01488b5c24484883c4305fc3498b09b8ffffffff483bc87607baa6070000eb348bc1488b5c24484883c4305fc3498b11b9000000804803cab8ffffffff483bc8770d8bc2488b5c24484883c4305fc3baae0700004c8d05daa86d00488d0d63a66d00ff153d58460084c0752cff154358460084c07422cc8bc3488b5c24484883c4305fc3418b01488b5c24484883c4305fc3c707010000008bc3488b5c24484883c4305fc3",
+      "Mask": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000ffffffff00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000ffffff00000000ffff00000000ffffffffffff00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "References": [
+        {
+          "Offset": 65,
+          "NextOffset": 69,
+          "Kind": "image-base"
+        },
+        {
+          "Offset": 73,
+          "NextOffset": 77,
+          "Kind": "jump-table"
+        },
+        {
+          "Offset": 129,
+          "NextOffset": 133,
+          "Kind": "rip"
+        },
+        {
+          "Offset": 217,
+          "NextOffset": 221,
+          "Kind": "call"
+        },
+        {
+          "Offset": 291,
+          "NextOffset": 295,
+          "Kind": "rip"
+        },
+        {
+          "Offset": 418,
+          "NextOffset": 422,
+          "Kind": "rip"
+        },
+        {
+          "Offset": 425,
+          "NextOffset": 429,
+          "Kind": "rip"
+        },
+        {
+          "Offset": 431,
+          "NextOffset": 435,
+          "Kind": "rip"
+        },
+        {
+          "Offset": 441,
+          "NextOffset": 445,
+          "Kind": "rip"
+        }
+      ]
+    },
+    {
+      "Name": "mapping-caller",
+      "AnchorOffset": -55,
+      "Bytes": "488bc8e8e4298600488be84885c00f84a10000004533e40f1f440000498bd4488bcde835268600488bc84533c0baffffffffe835328600448bf083f8ff7462488b5740488d442438483bc2723a48634f50488d442438488d148a483bc273284c8d05b639cd00baa3040000488d0dfa39cd00ff15e48bcc0084c0750bff15ea8bcc0084c07401cc48635f50488d4f40ba01000000e8a33ac2ff488b474044893498488bcde8932a8600488be84885c00f8567ffffff",
+      "Mask": "ffffffff00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000ffffffffffffffffffffffff00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000ffffffffffffffff00000000ffff00000000ffffffffffff00000000ffffffffffffffffffffffffffffffffffffff00000000ffffffffffffffffffffffff00000000ffffffffffffffffffffffff",
+      "References": [
+        {
+          "Offset": 4,
+          "NextOffset": 8,
+          "Kind": "call"
+        },
+        {
+          "Offset": 35,
+          "NextOffset": 39,
+          "Kind": "call"
+        },
+        {
+          "Offset": 51,
+          "NextOffset": 55,
+          "Kind": "call"
+        },
+        {
+          "Offset": 98,
+          "NextOffset": 102,
+          "Kind": "rip"
+        },
+        {
+          "Offset": 110,
+          "NextOffset": 114,
+          "Kind": "rip"
+        },
+        {
+          "Offset": 116,
+          "NextOffset": 120,
+          "Kind": "rip"
+        },
+        {
+          "Offset": 126,
+          "NextOffset": 130,
+          "Kind": "rip"
+        },
+        {
+          "Offset": 149,
+          "NextOffset": 153,
+          "Kind": "call"
+        },
+        {
+          "Offset": 165,
+          "NextOffset": 169,
+          "Kind": "call"
+        }
+      ]
+    }
+  ],
+  "SwitchTableOffset": 496,
+  "SwitchTargetOffsets": [
+    477,
+    82,
+    463,
+    327,
+    463,
+    165,
+    463,
+    343,
+    463,
+    250,
+    376
+  ],
+  "TargetFunctionSize": 540,
+  "FamiliesPatterns": [
+    {
+      "Name": "families-1",
+      "Bytes": "0f8e000000004889bc2430010000",
+      "Mask": "ffff00000000ffffffffffffffff",
+      "PatchJumpDisplacement": 563,
+      "CompareBefore": "44396020"
+    },
+    {
+      "Name": "families-2",
+      "Bytes": "0f84000000004c0000000000000f1f400066660f1f8400000000004863c7",
+      "Mask": "ffff00000000ff000000000000ffffffffffffffffffffffffffffffffff",
+      "PatchJumpDisplacement": 429,
+      "CompareBefore": "83ffff"
+    },
+    {
+      "Name": "families-3",
+      "Bytes": "0f84000000006666660f1f8400000000004963c6",
+      "Mask": "ffff00000000ffffffffffffffffffffffffffff",
+      "PatchJumpDisplacement": 561,
+      "CompareBefore": "4183feff"
+    }
+  ]
+}

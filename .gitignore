@@ -1,0 +1,33 @@
+# Credentials and operational data
+.env
+.env.*
+!.env.example
+data/
+*.key
+*.pem
+*.pfx
+*.dpapi
+*tokens*.txt
+*token*.json
+server-device.json
+server-upload.key
+# Build and generated dependencies
+bin/
+obj/
+dist/
+.venv/
+__pycache__/
+*.pyc
+*.pyd
+*.dll
+*.exe
+*.zip
+*.log
+*.previous
+NetAssets/*
+!NetAssets/README.md
+DownloadAssets/*
+!DownloadAssets/README.md
+.vs/
+.idea/
+.DS_Store
