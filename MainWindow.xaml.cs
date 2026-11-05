@@ -141,12 +141,14 @@ public partial class MainWindow : Window {
   DetailName.Text=selected.Name;DetailMeta.Text=$"APP {selected.AppId} / {selected.TypeLabel}\n{(selected.IsFree?"商店标记免费":"价格信息以商店为准")}";
   DetailCover.Source=selected.Cover;SourceIdBox.Text=selected.SourceId>0?selected.SourceId.ToString():"";
   AutoMappingLabel.Text=selected.SourceId>0?$"免费替代 ID / {selected.SourceId} · 已分配":"加入时自动分配免费 ID";
-  AddButton.Content=library.Games.Any(g=>g.AppId==selected.AppId)?"已加入 · 启用":"加入游戏库";AddButton.IsEnabled=true;DownloadGameButton.IsEnabled=selected.Kind!="dlc";var task=new GameDownloadService(storage).Status(selected.AppId);DownloadGameButton.Content=task.Total>0&&task.Event!="complete"?$"↓ 继续下载 · {task.Completed/task.Total*100:F1}%":"↓ 下载 / 安装游戏";ApplyMappingButton.IsEnabled=true;RemoveButton.IsEnabled=library.Games.Any(g=>g.AppId==selected.AppId);
+  AddButton.Content=library.Games.Any(g=>g.AppId==selected.AppId)?"已加入 · 启用":"加入游戏库";AddButton.IsEnabled=true;DownloadGameButton.IsEnabled=selected.Kind!="dlc";LanGameButton.IsEnabled=selected.Kind!="dlc";var task=new GameDownloadService(storage).Status(selected.AppId);DownloadGameButton.Content=task.Total>0&&task.Event!="complete"?$"↓ 继续下载 · {task.Completed/task.Total*100:F1}%":"↓ 下载 / 安装游戏";ApplyMappingButton.IsEnabled=true;RemoveButton.IsEnabled=library.Games.Any(g=>g.AppId==selected.AppId);
  }
  GameItem Bookmark(GameItem g){
   var existing=library.Games.FirstOrDefault(x=>x.AppId==g.AppId);if(existing!=null)return existing;
   var copy=g.Copy();copy.Enabled=false;copy.SourceId=0;library.Games.Add(copy);return copy;
  }
+ readonly Dictionary<uint,LanWindow> lanWindows=[];
+ void OpenLanGame(object sender,RoutedEventArgs e){if(selected==null)return;if(lanWindows.TryGetValue(selected.AppId,out var existing)){existing.Activate();return;}try{var window=new LanWindow(storage,library.Settings,selected.Copy()){Owner=this};var id=selected.AppId;lanWindows[id]=window;window.Closed+=(_,_)=>lanWindows.Remove(id);window.Show();}catch(Exception error){Notify(error.Message,true);}}
  void DownloadGame(object sender,RoutedEventArgs e){if(selected!=null)OpenDownload(selected.Copy());}
  void Enable(GameItem g,string? explicitId=null){
   uint old=g.SourceId;bool enabled=g.Enabled;

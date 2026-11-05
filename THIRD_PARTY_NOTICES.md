@@ -16,3 +16,7 @@ Bear 的原创代码按 GPL-3.0-only 发布。依赖的许可证不因整合而�
 Watt Toolkit 与 SteamHostSync 是网络设计或地址提示的参考项目，不是 Bear 的内置资料服务。公开仓库没有整包引入 Watt Toolkit，也没有包含其运营配置。请勿将设计参考理解为游戏资料来源或项目背书。
 
 Steam、游戏名称与第三方标识属于相应权利人。游戏文件、清单、密钥、资料包和补丁二进制不包含在本仓库的 GPL 授权内容中。本仓库的应用图标与像素页面插画随项目分发。
+
+局域网联机使用可选的 Goldberg Steam Emulator 核心（LGPL-3.0）。核心单独下载或由使用者导入，可替换；当前对应源码为 https://github.com/Detanup01/gbe_fork/tree/release-2026_09_27 。许可证正文见 Assets/LGPL-3.0.txt，GNU GPL 正文见 LICENSE。
+
+SmartGoldbergEmu（LGPL-3.0-or-later）仅作为配置和启动交互的设计参考，本次没有复制其启动器代码。按需下载的 7zr 来自 7-Zip 官方公共领域 SDK；源码见 https://www.7-zip.org/sdk.html 。本仓库不附带这些预编译第三方核心或工具。

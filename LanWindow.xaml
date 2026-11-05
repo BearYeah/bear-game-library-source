@@ -1,0 +1,29 @@
+<Window x:Class="NovaLibrary.LanWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="局域网联机 · 试用" Width="760" Height="860" MinWidth="680" MinHeight="720" WindowStartupLocation="CenterOwner" Background="#0E1524" Foreground="#EAF0F9">
+ <Window.Resources>
+  <Style TargetType="TextBlock"><Setter Property="Foreground" Value="#D8E3F3"/><Setter Property="FontFamily" Value="Microsoft YaHei UI"/><Setter Property="TextWrapping" Value="Wrap"/></Style>
+  <Style TargetType="TextBox"><Setter Property="Padding" Value="9,7"/><Setter Property="Background" Value="#152338"/><Setter Property="Foreground" Value="#EAF0F9"/><Setter Property="BorderBrush" Value="#38506B"/></Style>
+  <Style TargetType="Button"><Setter Property="Padding" Value="12,8"/><Setter Property="Background" Value="#223751"/><Setter Property="Foreground" Value="#EAF0F9"/><Setter Property="BorderBrush" Value="#426078"/></Style>
+  <Style TargetType="ComboBox"><Setter Property="Padding" Value="9,6"/></Style>
+ </Window.Resources>
+ <Grid Margin="24"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+  <StackPanel><TextBlock Text="LOCAL PLAY / EXPERIMENTAL" Foreground="#7DE7FF" FontFamily="Consolas" FontSize="12"/><TextBlock x:Name="GameName" FontSize="25" FontWeight="Bold" Margin="0,8,0,5"/><TextBlock x:Name="ModeState" Foreground="#A5BAD2" FontSize="12" Margin="0,0,0,15"/></StackPanel>
+  <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"><StackPanel x:Name="OptionsPanel" Margin="0,0,12,0">
+   <TextBlock Text="游戏启动程序" FontSize="12"/><Grid Margin="0,7,0,12"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBox x:Name="ExeBox"/><Button Grid.Column="1" Content="选择 EXE" Click="ChooseExecutable" Margin="8,0,0,0"/></Grid>
+   <TextBlock Text="游戏使用的 Steam API 文件" FontSize="12"/><Grid Margin="0,7,0,12"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBox x:Name="ApiBox"/><Button Grid.Column="1" Content="选择 DLL" Click="ChooseApi" Margin="8,0,0,0"/></Grid>
+   <TextBlock Text="启动参数（可留空）" FontSize="12"/><TextBox x:Name="ArgumentsBox" Margin="0,7,0,15"/>
+   <Border Background="#152338" Padding="14" CornerRadius="8"><StackPanel>
+    <TextBlock Text="联机核心 · Goldberg / LGPLv3" FontWeight="Bold"/><TextBlock x:Name="CorePath" FontSize="10" Foreground="#8F9DB3" Margin="0,7,0,10"/>
+    <WrapPanel><Button Content="下载官方核心" Click="DownloadCore" Margin="0,0,8,6"/><Button Content="导入核心文件夹" Click="ImportCore" Margin="0,0,8,6"/><Button Content="核心源码 ↗" Click="OpenCoreSource" Margin="0,0,0,6"/></WrapPanel>
+    <CheckBox x:Name="CoreProxyBox" Content="核心下载跟随软件代理（默认直连）" Foreground="#9BB7D2" FontSize="11" Margin="0,5,0,0"/>
+   </StackPanel></Border>
+   <Grid Margin="0,16,0,12"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="16"/><ColumnDefinition Width="170"/></Grid.ColumnDefinitions><StackPanel><TextBlock Text="玩家昵称" FontSize="12"/><TextBox x:Name="NicknameBox" Margin="0,7,0,0"/></StackPanel><StackPanel Grid.Column="2"><TextBlock Text="发现端口" FontSize="12"/><TextBox x:Name="PortBox" Margin="0,7,0,0"/></StackPanel></Grid>
+   <TextBlock Text="好友地址（可选，每行一个 IP、域名或 IP:端口）" FontSize="12"/><TextBox x:Name="PeersBox" AcceptsReturn="True" Height="65" VerticalScrollBarVisibility="Auto" Margin="0,7,0,7"/>
+   <TextBlock Text="同一局域网通常可自动发现；虚拟局域网可填写对方地址。各玩家需要一致的游戏版本和兼容的联机核心。" FontSize="11" Foreground="#8F9DB3"/>
+   <CheckBox x:Name="OverlayBox" Content="启用 Shift+Tab 好友 / 邀请浮层（实验性）" Foreground="#D8E3F3" Margin="0,14,0,12"/>
+   <Expander Header="玩家 ID 与语言" Foreground="#A5BAD2"><StackPanel Margin="0,10,0,12"><TextBlock Text="每台电脑使用不同的玩家 ID；更换 ID 可能切换模拟器记录。" Foreground="#8F9DB3" FontSize="11"/><Grid Margin="0,7,0,10"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBox x:Name="PlayerIdBox"/><Button Grid.Column="1" Content="生成新 ID" Click="NewIdentity" Margin="8,0,0,0"/></Grid><ComboBox x:Name="LanguageBox" SelectedIndex="0"><ComboBoxItem Content="简体中文" Tag="schinese"/><ComboBoxItem Content="English" Tag="english"/><ComboBoxItem Content="繁體中文" Tag="tchinese"/><ComboBoxItem Content="日本語" Tag="japanese"/></ComboBox></StackPanel></Expander>
+   <WrapPanel Margin="0,10,0,10"><Button Content="保存联机配置" Click="SaveProfile" Margin="0,0,8,6"/><Button Content="发现 / 加入大厅" Click="BrowseLobbies" Margin="0,0,0,6"/></WrapPanel>
+   <TextBlock x:Name="GameHint" Foreground="#9BB7D2" FontSize="11"/>
+  </StackPanel></ScrollViewer>
+  <StackPanel Grid.Row="2" Margin="0,15,0,0"><TextBlock x:Name="StatusLabel" Text="选择游戏程序与 Steam API 文件后启用。原文件只备份一次，可随时恢复。" FontSize="11" Foreground="#9BB7D2" Margin="0,0,0,12"/><WrapPanel x:Name="ActionPanel"><Button Content="普通启动" Click="StartNormal" Margin="0,0,8,6"/><Button x:Name="ApplyButton" Content="启用联机模式" Click="ApplyMode" Margin="0,0,8,6"/><Button Content="联机启动" Click="StartLan" Background="#7DE7FF" Foreground="#0E1524" FontWeight="Bold" Margin="0,0,8,6"/><Button x:Name="RestoreButton" Content="恢复原游戏文件" Click="RestoreMode" Margin="0,0,0,6"/></WrapPanel></StackPanel>
+ </Grid>
+</Window>

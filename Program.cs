@@ -3,6 +3,10 @@ using System.Text.Json;
 namespace NovaLibrary;
 public static class Program {
  [STAThread] public static int Main(string[] args){
+  if(args.Length>=3&&args[0]=="--lan-test")return LanTests.Run(args[1],args[2]);
+  if(args.Length>=3&&args[0]=="--lan-native-peer")return LanTests.Peer(args[1],args[2]);
+  if(args.Length>=2&&args[0]=="--lan-fetch-core")return LanTests.DownloadCore(args[1]).GetAwaiter().GetResult();
+  if(args.Length>=2&&args[0]=="--lan-launch-child")return LanTests.LaunchChild(args[1]);
   if(args.Length>=2&&args[0]=="--direct-network-test")return SelfTest.Network(args[1],null,true).GetAwaiter().GetResult();
   if(args.Length>=2&&args[0]=="--backup-retention-test")return BackupRetentionTests.Run(args[1]);
   if(args.Length>=2&&args[0]=="--download-problem-test")return DownloadProblemTest.Run(args[1],args.Length>2?args[2]:"");
