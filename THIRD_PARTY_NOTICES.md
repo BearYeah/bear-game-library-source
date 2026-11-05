@@ -20,3 +20,5 @@ Steam、游戏名称与第三方标识属于相应权利人。游戏文件、清
 局域网联机使用可选的 Goldberg Steam Emulator 核心（LGPL-3.0）。固定版本核心在构建时获取并内置，运行时释放为可替换文件，也可由使用者导入其他版本；当前对应源码为 https://github.com/Detanup01/gbe_fork/tree/release-2026_09_27 。许可证正文见 Assets/LGPL-3.0.txt，GNU GPL 正文见 LICENSE。
 
 SmartGoldbergEmu（LGPL-3.0-or-later）仅作为配置和启动交互的设计参考，本次没有复制其启动器代码。构建阶段按需获取的 7zr 来自 7-Zip 官方公共领域 SDK；源码见 https://www.7-zip.org/sdk.html 。Git 源码不附带这些预编译核心或工具；发行 EXE 会包含固定版本核心，其对应源码和许可证随发行提供。
+
+SteamKit2 3.5.0（LGPL-2.1-only）用于匿名 Steam 会话和内容节点访问授权。对应源码：https://github.com/SteamRE/SteamKit/tree/3.5.0 ，许可证见 Assets/SteamKit-LGPL-2.1.txt。依赖 protobuf-net（Apache-2.0）、ZstdSharp.Port（MIT）及 System.IO.Hashing（MIT）。公开源码保留完整授权会话和下载调度实现，可替换依赖后重新构建。

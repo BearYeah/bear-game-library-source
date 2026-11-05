@@ -46,7 +46,7 @@ public sealed class GameDownloadService(Storage storage) {
  }
  public static ProcessStartInfo Command(string worker,string job,string proxy){
   var command=new ProcessStartInfo(worker){UseShellExecute=false,CreateNoWindow=true,WindowStyle=ProcessWindowStyle.Hidden,RedirectStandardOutput=true,RedirectStandardError=true,StandardOutputEncoding=Encoding.UTF8,StandardErrorEncoding=Encoding.UTF8};
-  command.ArgumentList.Add("--job");command.ArgumentList.Add(job);command.Environment["BEAR_DOWNLOAD_PROXY"]=proxy;command.Environment["PYTHONUTF8"]="1";return command;
+  command.ArgumentList.Add("--job");command.ArgumentList.Add(job);command.Environment["BEAR_DOWNLOAD_PROXY"]=proxy;command.Environment["PYTHONUTF8"]="1";command.Environment["BEAR_CDN_AUTH_EXE"]=Environment.ProcessPath!;return command;
  }
  string Worker(){
   var directory=Path.Combine(storage.Root,"runtime","downloads",UpdateTrust.Current.ToString(3));System.IO.Directory.CreateDirectory(directory);var file=Path.Combine(directory,"BearDownloader.exe");

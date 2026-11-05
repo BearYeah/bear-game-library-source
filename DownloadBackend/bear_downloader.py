@@ -19,7 +19,7 @@ import steam_manifest as core
 from download_catalog import select_depots, supplement_depots
 from bear_cache_client import BearCache, CacheUnavailable, DailyLimit, DEFAULT_SERVER
 from steam_network import SteamHTTP
-from steam_cdn import discover, ContentPool, TransferMeter, AdaptiveConcurrency
+from steam_cdn import discover, ContentPool, TransferMeter, AdaptiveConcurrency, CdnAuthorization
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
@@ -44,19 +44,25 @@ def configure_network(proxy, route_file='', local_sni=True, download_proxy='dire
                         local_sni, direct=download_proxy == 'direct')
     transfer_meter = TransferMeter()
 
-    def request(transport, url, timeout=30, retries=2, raw=False):
+    def request(transport, url, timeout=30, retries=2, raw=False, minimum_rate=0):
         chunk = '/chunk/' in url
         for attempt in range(retries):
             try:
+                started = time.monotonic()
                 with transport.get(url, timeout=(min(timeout, 3 if chunk else 5), timeout), stream=chunk) as response:
                     if response.status_code >= 400:
                         raise urllib.error.HTTPError(url, response.status_code,
                                                      response.reason, {}, None)
                     if chunk:
                         parts = []
+                        received = 0
                         for part in response.iter_content(65536):
                             transfer_meter.add(len(part))
                             parts.append(part)
+                            received += len(part)
+                            elapsed = time.monotonic()-started
+                            if elapsed > timeout*2 or (elapsed > 3 and received/elapsed < minimum_rate):
+                                raise requests.Timeout('内容节点传输过慢，正在切换连接。')
                         return b''.join(parts)
                     return response.content if raw else response.content.decode("utf-8", "replace")
             except urllib.error.HTTPError:
@@ -78,7 +84,10 @@ def configure_content(job):
         nodes = discover(content_get, job['steam'], job['appid'])
     except (requests.RequestException, urllib.error.URLError, ValueError, KeyError):
         nodes = []
-    pool = ContentPool(nodes, ['https://'+host for host in core.CDN_HOSTS], content_get)
+    authorization = CdnAuthorization(job['appid'], job['steam'], content_get,
+        lambda message: emit('stage', phase='nodes', message=message))
+    pool = ContentPool(nodes, ['https://'+host for host in core.CDN_HOSTS], content_get,
+                       authorization=authorization)
     core.chunk_fetch = pool.fetch
     emit('stage', phase='nodes', message='内容连接已就绪 · '+('游戏内容直连' if job.get('download_proxy', 'direct') == 'direct' else '游戏内容跟随代理设置'))
 
