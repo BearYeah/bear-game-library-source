@@ -28,9 +28,9 @@ public static class ClientPolicyService {
  public static bool AccessControlEnabled=>Environment.GetEnvironmentVariable("BEAR_CLIENT_ACCESS_CONTROL")=="1";
  internal static readonly JsonSerializerOptions Json=new(){PropertyNameCaseInsensitive=true};
  public static string CurrentHwid {get;internal set;}="";
- internal static ClientUpdateInfo? StartupUpdate;
+ internal static Task<ClientAccessDecision>? StartupAccessCheck;
  public static async Task<ClientUpdateInfo?> GetUpdate(Storage storage,Settings settings,CancellationToken ct){
-  if(StartupUpdate is { } cached){StartupUpdate=null;return cached;}
+  if(StartupAccessCheck is { } pending){StartupAccessCheck=null;return (await pending.WaitAsync(ct)).Update;}
   return await Request<ClientUpdateInfo>(storage,settings,"update","",ct);
  }
  internal static async Task<T> Request<T>(Storage storage,Settings settings,string action,string hwid,CancellationToken ct){
@@ -54,12 +54,17 @@ public static class ClientPolicyService {
 }
 public sealed class ClientAccessSession {
  readonly string hwid;readonly IClientAccessStateStore cache;readonly Func<CancellationToken,Task<ClientAccessDecision>> fetch;readonly Func<double> clock;
- DispatcherTimer? timer;bool checking;
+ DispatcherTimer? timer;bool checking,refreshAfterStartup;
  public ClientAccessDecision? LastDecision {get;private set;}
  public string Hwid=>hwid;
  public ClientAccessSession(Storage storage,Func<Settings> settings):this(HardwareFingerprint.Current(),new RegistryClientAccessState(),ct=>ClientPolicyService.Request<ClientAccessDecision>(storage,settings(),"access",ClientPolicyService.CurrentHwid,ct),()=>DateTimeOffset.UtcNow.ToUnixTimeSeconds()) {ClientPolicyService.CurrentHwid=hwid;}
  internal ClientAccessSession(string hwid,IClientAccessStateStore cache,Func<CancellationToken,Task<ClientAccessDecision>> fetch,Func<double> clock){this.hwid=hwid;this.cache=cache;this.fetch=fetch;this.clock=clock;}
  public async Task<bool> AllowStartup(Func<ClientAccessDecision,bool> showUnavailable,CancellationToken ct){
+  ct.ThrowIfCancellationRequested();refreshAfterStartup=false;
+  var saved=cache.Read();
+  if(saved?.Hwid==hwid&&saved.Decision.Allowed&&saved.Decision.OfflineUntil>clock()){
+   LastDecision=saved.Decision with {Offline=true};refreshAfterStartup=true;return true;
+  }
   var decision=await Refresh(ct);
   return decision.Allowed||showUnavailable(decision);
  }
@@ -74,19 +79,24 @@ public sealed class ClientAccessSession {
    return LastDecision=new(){Allowed=false,Code="connection_required",Message="暂时无法连接验证服务。首次使用或离线许可到期后，需要联网重新检查。"};
   }
  }
- public void Attach(MainWindow window){
+ public Task<ClientAccessDecision> Attach(MainWindow window){
   timer=new DispatcherTimer{Interval=TimeSpan.FromSeconds(60)};
   var lifetime=new CancellationTokenSource();window.Closed+=(_,_)=>{timer.Stop();lifetime.Cancel();lifetime.Dispose();};
-  timer.Tick+=async(_,_)=>{
+  async Task Check(Task<ClientAccessDecision>? pending=null){
    if(checking)return;checking=true;
    try{
-    var decision=await Refresh(lifetime.Token);if(decision.Allowed)return;
+    var decision=await (pending??Refresh(lifetime.Token));if(decision.Allowed)return;
     timer.Stop();await window.SuspendForClientPolicy();
     var gate=new ClientAccessWindow(this,decision){Owner=window};
     if(gate.ShowDialog()==true){window.IsEnabled=true;window.Show();window.Activate();timer.Start();}
     else window.Close();
    }catch(OperationCanceledException){}finally{checking=false;}
-  };
-  timer.Start();
+  }
+  var startup=refreshAfterStartup?Task.Run(()=>Refresh(lifetime.Token),lifetime.Token):Task.FromResult(LastDecision!);
+  if(refreshAfterStartup){
+   async void FirstRender(object? sender,EventArgs e){window.ContentRendered-=FirstRender;await Check(startup);}
+   window.ContentRendered+=FirstRender;refreshAfterStartup=false;
+  }
+  timer.Tick+=async(_,_)=>await Check();timer.Start();return startup;
  }
 }

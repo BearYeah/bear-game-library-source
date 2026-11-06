@@ -25,7 +25,25 @@ public static class ClientPolicyTests {
    var response=JsonSerializer.Deserialize<ClientAccessDecision>("{\"allowed\":true,\"checked_at\":10,\"offline_until\":86410,\"revision\":5}",ClientPolicyService.Json)!;Check(response.Allowed&&response.OfflineUntil==86410&&response.Revision==5,"the desktop reads the server lease fields correctly");
    var firmware=new byte[8+25+2+6];firmware[8]=1;firmware[9]=25;for(int n=0;n<16;n++)firmware[16+n]=(byte)(n+1);firmware[35]=127;firmware[36]=4;
    var identity=HardwareFingerprint.FirmwareIdentity(firmware);var hash=HardwareFingerprint.Digest(identity);Check(identity.Length>0&&hash.Length==64&&hash==HardwareFingerprint.Digest(identity)&&hash!=HardwareFingerprint.Digest(identity+"changed"),"firmware identity has a stable SHA-256 digest and changes with the machine identity");
-   File.WriteAllText(Path.Combine(output,"client-policy-tests.json"),JsonSerializer.Serialize(new{result="pass",checks},Storage.Json));return 0;
+   var approval=new ClientAccessDecision{Allowed=true,OfflineUntil=now+86400};
+   var startupCache=new MemoryState{Value=new(hwid,approval)};int startupRequests=0;
+   var slowReply=new TaskCompletionSource<ClientAccessDecision>(TaskCreationOptions.RunContinuationsAsynchronously);
+   Task<ClientAccessDecision> Slow(CancellationToken ct){startupRequests++;return slowReply.Task.WaitAsync(ct);}
+   var warm=new ClientAccessSession(hwid,startupCache,Slow,()=>now);var elapsed=System.Diagnostics.Stopwatch.StartNew();
+   var immediate=warm.AllowStartup(_=>throw new Exception("unexpected startup dialog"),CancellationToken.None);elapsed.Stop();
+   Check(immediate.IsCompletedSuccessfully&&immediate.Result&&startupRequests==0,"a valid cached approval opens immediately without starting or waiting for the network transport");
+   startupCache.Value=new(hwid,approval with{OfflineUntil=now});
+   var expiredStartup=warm.AllowStartup(_=>false,CancellationToken.None);
+   Check(!expiredStartup.IsCompleted&&startupRequests==1,"an expired approval still waits for its required online check");
+   slowReply.SetResult(approval);Check(expiredStartup.GetAwaiter().GetResult(),"a first online approval can finish the waiting startup");
+   foreach(var saved in new[]{new ClientAccessState(new string('b',64),approval),new ClientAccessState(hwid,new(){Allowed=false,Code="hardware_blocked"})}){
+    var pending=new TaskCompletionSource<ClientAccessDecision>(TaskCreationOptions.RunContinuationsAsynchronously);int requests=0;
+    var restricted=new ClientAccessSession(hwid,new MemoryState{Value=saved},ct=>{requests++;return pending.Task.WaitAsync(ct);},()=>now);
+    var launch=restricted.AllowStartup(_=>false,CancellationToken.None);
+    Check(!launch.IsCompleted&&requests==1,"cached rejection or another machine's approval cannot take the fast startup path");
+    pending.SetResult(new(){Allowed=false});Check(!launch.GetAwaiter().GetResult(),"an online rejection still prevents restricted startup");
+   }
+   File.WriteAllText(Path.Combine(output,"client-policy-tests.json"),JsonSerializer.Serialize(new{result="pass",cachedStartupMilliseconds=elapsed.Elapsed.TotalMilliseconds,checks},Storage.Json));return 0;
   }catch(Exception error){File.WriteAllText(Path.Combine(output,"client-policy-tests.json"),JsonSerializer.Serialize(new{result="fail",error=error.ToString(),checks},Storage.Json));return 1;}
  }
 }

@@ -56,10 +56,11 @@ public static class Program {
     try{
      if(access!=null){
       if(!await access.AllowStartup(decision=>new ClientAccessWindow(access,decision).ShowDialog()==true,CancellationToken.None)){application.Shutdown(1);return;}
-      ClientPolicyService.StartupUpdate=state.Settings.AutoCheckUpdates?access.LastDecision?.Update:null;
      }
      var window=new MainWindow(storage,state,preview);
-     application.MainWindow=window;application.ShutdownMode=ShutdownMode.OnMainWindowClose;access?.Attach(window);window.Show();
+     application.MainWindow=window;application.ShutdownMode=ShutdownMode.OnMainWindowClose;
+     if(access!=null){var startup=access.Attach(window);ClientPolicyService.StartupAccessCheck=state.Settings.AutoCheckUpdates?startup:null;}
+     window.Show();
     }catch(Exception e){MessageBox.Show(e.Message,"Bear游戏库 · 启动失败");application.Shutdown(1);}
    };
    return application.Run();

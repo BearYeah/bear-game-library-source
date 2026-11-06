@@ -9,7 +9,7 @@ public static class UiSelfTest {
   var app=new Application{ShutdownMode=ShutdownMode.OnExplicitShutdown};
   var storage=new Storage(folder);var state=new LibraryState{CatalogRevision=1,Settings=new(){Motion=false},Pool=new uint[]{90,205,219}.Concat(Enumerable.Range(500000,1000).Select(n=>(uint)n)).Select(id=>new Candidate{AppId=id,Confirmed=true}).ToList()};
   var window=new MainWindow(storage,state,true);
-  try{var result=window.VerifyOfflineWorkflow();window.RenderDlcGrouping(Path.Combine(output,"dlc-ui"));File.WriteAllText(Path.Combine(output,"workflow-test.json"),JsonSerializer.Serialize(new{result="pass",scope="WPF handlers exercised inside an isolated application; no desktop window shown, no Steam files modified",checks=result},Storage.Json));return 0;}
+  try{var result=window.VerifyOfflineWorkflow();result.Add(ClientStartupUiTests.Run(Path.Combine(folder,"startup")));window.RenderDlcGrouping(Path.Combine(output,"dlc-ui"));File.WriteAllText(Path.Combine(output,"workflow-test.json"),JsonSerializer.Serialize(new{result="pass",scope="WPF handlers exercised inside an isolated application; startup window rendered offscreen, no Steam files modified",checks=result},Storage.Json));return 0;}
   catch(Exception e){File.WriteAllText(Path.Combine(output,"workflow-test.json"),JsonSerializer.Serialize(new{result="fail",error=e.ToString()},Storage.Json));return 1;}
   finally{window.Close();app.Shutdown();}
  }
