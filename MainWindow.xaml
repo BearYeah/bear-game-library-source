@@ -131,18 +131,21 @@
         <Button x:Name="StartSteamButton" Content="启动 / 重启 Steam" Click="StartSteamClick" HorizontalAlignment="Left" Margin="0,0,0,18"/>
         <TextBlock x:Name="CompatibilityHint" Text="安装前自动检查兼容性，无需按整个客户端文件版本放行。" Foreground="#8F9DB3" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,10"/>
         <WrapPanel Margin="0,0,0,18"><Button Content="检测当前 Steam 兼容性" Click="CheckCompatibility" Margin="0,0,10,8"/><Button Content="打开检测报告" Click="OpenCompatibilityReport" Margin="0,0,0,8"/></WrapPanel>
-        <TextBlock Text="Bear 自动更新 / GitHub Releases" FontSize="14" FontWeight="Bold" Margin="0,0,0,9"/>
+        <TextBlock Text="Bear 更新 / 蓝奏云" FontSize="14" FontWeight="Bold" Margin="0,0,0,9"/>
         <CheckBox x:Name="AutoCheckUpdatesBox" Content="启动时检查新版本" Click="UpdatePreferencesChanged" Margin="0,0,0,9"/>
         <TextBlock x:Name="UpdateState" Text="蓝奏云更新 · 检测到新版本后询问是否打开下载网页" Foreground="#8F9DB3" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,10"/>
         <WrapPanel Margin="0,0,0,20"><Button x:Name="CheckUpdateButton" Content="检查更新" Click="CheckUpdateClick" Margin="0,0,8,8"/><Button x:Name="OpenUpdatePageButton" Content="前往蓝奏云更新" Click="OpenUpdatePageClick" IsEnabled="False" Margin="0,0,0,8"/></WrapPanel>
-        <TextBlock Text="设备指纹" Foreground="#C0CFDF" FontSize="12" Margin="0,0,0,7"/>
-        <Grid Margin="0,0,0,20"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBox x:Name="HardwareIdBox" IsReadOnly="True" FontFamily="Consolas" FontSize="10" VerticalContentAlignment="Center" ToolTip="联系管理员时可提供此编号"/><Button Grid.Column="1" Content="复制设备指纹" Click="CopyHardwareId" Margin="8,0,0,0" Padding="10,7"/></Grid>
         <TextBlock Text="联网代理（留空使用系统代理）" FontSize="14" FontWeight="Bold"/><TextBox x:Name="ProxyBox" Margin="0,9,0,7" ToolTip="例如 http://127.0.0.1:7890 或 socks5://127.0.0.1:1080"/><TextBlock Text="用于商店资料、更新及游戏下载。" Foreground="#8F9DB3" FontSize="11" Margin="0,0,0,20"/>
         <CheckBox x:Name="LocalSniBox" Content="启用本地 SNI 加速" Margin="0,0,0,7"/>
         <TextBlock Text="优化 Bear 的商店、封面及下载连接，已有代理优先。" Foreground="#8F9DB3" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,20"/>
         <TextBlock Text="封面缓存上限 / MB" FontSize="14" FontWeight="Bold"/><TextBox x:Name="CacheLimitBox" Text="200" Width="130" HorizontalAlignment="Left" Margin="0,9,0,12"/><CheckBox x:Name="MotionBox" Content="启用扫描线动效" Margin="0,0,0,18"/>
         <WrapPanel><Button Content="保存设置" Style="{StaticResource Primary}" Click="SaveSettings" Margin="0,0,10,8"/><Button Content="清理封面缓存" Click="ClearCovers" Margin="0,0,10,8"/><Button Content="清理补丁缓存" Click="ClearPackage" Margin="0,0,0,8"/></WrapPanel>
         <TextBlock Text="自动备份最多保留 5 份；卸载所需的原文件单独保留。封面和公开资料按需缓存。" Foreground="#8F9DB3" FontSize="11" TextWrapping="Wrap" Margin="0,15,0,0"/>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,4" ToolTip="申请调整下载额度时，将此编号发给管理员">
+         <TextBlock Text="设备编号：" Foreground="#8094B0" FontSize="11" VerticalAlignment="Center"/>
+         <TextBlock x:Name="DeviceIdLabel" Text="联网后生成" FontFamily="Consolas" Foreground="#8F9DB3" FontSize="11" VerticalAlignment="Center"/>
+         <Button x:Name="CopyDeviceIdButton" Content="复制" Click="CopyDeviceId" IsEnabled="False" Margin="8,0,0,0" Padding="8,3" FontSize="10"/>
+        </StackPanel>
        </StackPanel>
       </ScrollViewer>
      </Grid>

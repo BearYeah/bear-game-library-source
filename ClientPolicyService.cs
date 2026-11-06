@@ -59,6 +59,10 @@ public sealed class ClientAccessSession {
  public string Hwid=>hwid;
  public ClientAccessSession(Storage storage,Func<Settings> settings):this(HardwareFingerprint.Current(),new RegistryClientAccessState(),ct=>ClientPolicyService.Request<ClientAccessDecision>(storage,settings(),"access",ClientPolicyService.CurrentHwid,ct),()=>DateTimeOffset.UtcNow.ToUnixTimeSeconds()) {ClientPolicyService.CurrentHwid=hwid;}
  internal ClientAccessSession(string hwid,IClientAccessStateStore cache,Func<CancellationToken,Task<ClientAccessDecision>> fetch,Func<double> clock){this.hwid=hwid;this.cache=cache;this.fetch=fetch;this.clock=clock;}
+ public async Task<bool> AllowStartup(Func<ClientAccessDecision,bool> showUnavailable,CancellationToken ct){
+  var decision=await Refresh(ct);
+  return decision.Allowed||showUnavailable(decision);
+ }
  public async Task<ClientAccessDecision> Refresh(CancellationToken ct){
   try{var response=await fetch(ct);cache.Save(new(hwid,response));return LastDecision=response;}
   catch(Exception error) when(error is IOException or JsonException){
@@ -78,7 +82,7 @@ public sealed class ClientAccessSession {
    try{
     var decision=await Refresh(lifetime.Token);if(decision.Allowed)return;
     timer.Stop();await window.SuspendForClientPolicy();
-    var gate=new ClientAccessWindow(this){Owner=window};
+    var gate=new ClientAccessWindow(this,decision){Owner=window};
     if(gate.ShowDialog()==true){window.IsEnabled=true;window.Show();window.Activate();timer.Start();}
     else window.Close();
    }catch(OperationCanceledException){}finally{checking=false;}

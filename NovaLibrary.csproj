@@ -3,7 +3,7 @@
     <OutputType>WinExe</OutputType><TargetFramework>net8.0-windows</TargetFramework>
     <UseWPF>true</UseWPF><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>BearLibrary</AssemblyName><RootNamespace>NovaLibrary</RootNamespace>
-    <Version>1.8.19</Version><Product>Bear游戏库</Product><Title>Bear游戏库</Title>
+    <Version>1.8.20</Version><Product>Bear游戏库</Product><Title>Bear游戏库</Title>
     <Company>lostlybear</Company><Authors>lostlybear</Authors>
     <ApplicationIcon>Assets\bear.ico</ApplicationIcon><ApplicationManifest>app.manifest</ApplicationManifest>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier><StartupObject>NovaLibrary.Program</StartupObject>

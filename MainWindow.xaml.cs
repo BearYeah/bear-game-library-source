@@ -104,7 +104,7 @@ public partial class MainWindow : Window {
   FreeOnly.Visibility=next=="search"?Visibility.Visible:Visibility.Collapsed;
   if(next=="search")QueryBox.Focus();
   if(next=="pool"||next=="settings")EmptyState.Visibility=Visibility.Collapsed;
-  Refresh();if(next=="downloads")RefreshDownloads();
+  Refresh();if(next=="downloads")RefreshDownloads();if(next=="settings")RefreshDeviceId();
  }
  void Navigation(object sender,RoutedEventArgs e)=>ChangeView(((Button)sender).Tag?.ToString()??"library");
  void QueryKeyDown(object sender,KeyEventArgs e){if(e.Key==Key.Enter){e.Handled=true;SearchClick(sender,e);}}

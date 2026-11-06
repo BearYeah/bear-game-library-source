@@ -50,12 +50,19 @@ public static class Program {
    ClientAccessSession? access=null;
    if(ClientPolicyService.AccessControlEnabled&&!args.Contains("--render-preview")){
     access=new ClientAccessSession(storage,()=>state.Settings);
-    if(new ClientAccessWindow(access).ShowDialog()!=true)return 1;
-    ClientPolicyService.StartupUpdate=state.Settings.AutoCheckUpdates?access.LastDecision?.Update:null;
    }
-   var window=new MainWindow(storage,state,preview);window.ShowHardwareId();
-   int render=Array.IndexOf(args,"--render-preview");if(render>=0&&render+1<args.Length){window.ExportPreview(args[render+1],args.Contains("--preview-small")?1190:1460,args.Contains("--preview-small")?750:900);var download=new DownloadWindow(storage,state.Settings,state.Games[0],()=>{});download.ExportPreview(args[render+1]);download.Close();return 0;}
-   application.MainWindow=window;application.ShutdownMode=ShutdownMode.OnMainWindowClose;access?.Attach(window);application.Run(window);return 0;
+   int render=Array.IndexOf(args,"--render-preview");if(render>=0&&render+1<args.Length){var window=new MainWindow(storage,state,preview);window.ExportPreview(args[render+1],args.Contains("--preview-small")?1190:1460,args.Contains("--preview-small")?750:900);var download=new DownloadWindow(storage,state.Settings,state.Games[0],()=>{});download.ExportPreview(args[render+1]);download.Close();window.Close();return 0;}
+   application.Startup+=async(_,_)=>{
+    try{
+     if(access!=null){
+      if(!await access.AllowStartup(decision=>new ClientAccessWindow(access,decision).ShowDialog()==true,CancellationToken.None)){application.Shutdown(1);return;}
+      ClientPolicyService.StartupUpdate=state.Settings.AutoCheckUpdates?access.LastDecision?.Update:null;
+     }
+     var window=new MainWindow(storage,state,preview);
+     application.MainWindow=window;application.ShutdownMode=ShutdownMode.OnMainWindowClose;access?.Attach(window);window.Show();
+    }catch(Exception e){MessageBox.Show(e.Message,"Bear游戏库 · 启动失败");application.Shutdown(1);}
+   };
+   return application.Run();
   }catch(Exception e){MessageBox.Show(e.Message,"Bear游戏库 · 启动失败");return 1;}
  }
 }
