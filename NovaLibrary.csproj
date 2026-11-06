@@ -3,11 +3,13 @@
     <OutputType>WinExe</OutputType><TargetFramework>net8.0-windows</TargetFramework>
     <UseWPF>true</UseWPF><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>BearLibrary</AssemblyName><RootNamespace>NovaLibrary</RootNamespace>
-    <Version>1.8.21</Version><Product>Bear游戏库</Product><Title>Bear游戏库</Title>
+    <Version>1.8.22</Version><Product>Bear游戏库</Product><Title>Bear游戏库</Title>
     <Company>lostlybear</Company><Authors>lostlybear</Authors>
     <ApplicationIcon>Assets\bear.ico</ApplicationIcon><ApplicationManifest>app.manifest</ApplicationManifest>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier><StartupObject>NovaLibrary.Program</StartupObject>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(DistributionBuild)' == 'true'"><DefineConstants>$(DefineConstants);BEAR_DISTRIBUTION</DefineConstants></PropertyGroup>
+  <ItemGroup Condition="'$(DistributionBuild)' == 'true'"><Compile Remove="*Tests.cs;SelfTest.cs;UiSelfTest.cs;DownloadProblemTest.cs;GameDownloadLiveTest.cs" /></ItemGroup>
   <ItemGroup><PackageReference Include="SteamKit2" Version="3.5.0"/></ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="LanAssets\*.zip"/>

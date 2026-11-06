@@ -4,6 +4,7 @@ namespace NovaLibrary;
 public static class Program {
  [STAThread] public static int Main(string[] args){
   if(args.Length>=2&&args[0]=="--cdn-auth")return SteamCdnSession.Run(uint.Parse(args[1])).GetAwaiter().GetResult();
+#if !BEAR_DISTRIBUTION
   if(args.Length>=3&&args[0]=="--lan-test")return LanTests.Run(args[1],args[2]);
   if(args.Length>=3&&args[0]=="--lan-native-peer")return LanTests.Peer(args[1],args[2]);
   if(args.Length>=2&&args[0]=="--lan-prepare-core")return LanTests.PrepareCore(args[1]).GetAwaiter().GetResult();
@@ -32,6 +33,7 @@ public static class Program {
   if(args.Length>=2&&args[0]=="--self-test")return SelfTest.Run(args[1]);
   if(args.Length>=2&&args[0]=="--network-test")return SelfTest.Network(args[1],args.Length>2?args[2]:null).GetAwaiter().GetResult();
   if(args.Length>=2&&args[0]=="--public-fixture-test")return SelfTest.PublicFixtures(args[1]);
+#endif
   string root=Path.Combine(AppContext.BaseDirectory,"data");
   int i=Array.IndexOf(args,"--data-dir");if(i>=0&&i+1<args.Length)root=args[i+1];
   var application=new Application{ShutdownMode=ShutdownMode.OnExplicitShutdown};

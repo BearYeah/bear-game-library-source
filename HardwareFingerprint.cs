@@ -4,7 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 namespace NovaLibrary;
 public static class HardwareFingerprint {
- [DllImport("kernel32.dll",SetLastError=true)] static extern uint GetSystemFirmwareTable(uint provider,uint table,byte[]? buffer,uint size);
+ [DllImport("kernel32.dll",EntryPoint="GetSystemFirmwareTable",SetLastError=true)] static extern uint GetSystemFirmwareTable(uint provider,uint table,byte[]? buffer,uint size);
  public static string Current(){
   uint size=GetSystemFirmwareTable(0x52534D42,0,null,0);string hardware="";
   if(size>0){var data=new byte[size];if(GetSystemFirmwareTable(0x52534D42,0,data,size)==size)hardware=FirmwareIdentity(data);}
