@@ -44,11 +44,11 @@ public partial class MainWindow {
   ModeBox.SelectedIndex=1;ReadSettings();Check(storage.Load().Settings.Mode=="families","Families selection persists in the existing settings format");
   var before=library.Games.Count;ManualAppId.Text="invalid";AddManualGame(this,new RoutedEventArgs(Button.ClickEvent));Check(library.Games.Count==before,"invalid manual AppID does not alter saved library");
   Check(offline.Requests==0,"all add and select operations complete with zero network requests");
-  Check(AutoCheckUpdatesBox.IsChecked==false&&AutoDownloadUpdatesBox.IsChecked==false,"public build leaves automatic updates off until its publisher configures signing trust");
+  Check(AutoCheckUpdatesBox.IsChecked==false&&FindName("AutoDownloadUpdatesBox")==null&&FindName("ApplyUpdateButton")==null&&OpenUpdatePageButton.Content.ToString()=="前往蓝奏云更新","update settings offer optional startup checks and a Lanzou webpage without automatic downloads or installs");
   var download=new DownloadWindow(storage,library.Settings,new GameItem{AppId=105600,Name="Fixture download"},()=>{},()=>{});
   var jobs=(ComboBox)download.FindName("JobsBox");var transfer=(ComboBox)download.FindName("TransferProxyBox");
   Check(((ComboBoxItem)jobs.SelectedItem).Tag.ToString()=="0"&&((ComboBoxItem)transfer.SelectedItem).Tag.ToString()=="direct","new downloads default to automatic concurrency and direct game-content connections");download.Close();
-  AutoCheckUpdatesBox.IsChecked=false;AutoDownloadUpdatesBox.IsChecked=false;UpdatePreferencesChanged(this,new RoutedEventArgs());var reloaded=storage.Load();Check(!reloaded.Settings.AutoCheckUpdates&&!reloaded.Settings.AutoDownloadUpdates,"turning off automatic update preferences persists without altering the library");checks.AddRange(VerifyDlcGrouping());checks.AddRange(DlcDownloadUiTests.Exercise(Path.Combine(storage.Root,"dlc-download-check")));return checks;
+  AutoCheckUpdatesBox.IsChecked=false;UpdatePreferencesChanged(this,new RoutedEventArgs());var reloaded=storage.Load();Check(!reloaded.Settings.AutoCheckUpdates,"turning off startup update checks persists without altering the library");checks.AddRange(VerifyDlcGrouping());checks.AddRange(DlcDownloadUiTests.Exercise(Path.Combine(storage.Root,"dlc-download-check")));return checks;
  }
 }
 sealed class OfflineFixtureHttp : HttpMessageHandler {

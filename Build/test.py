@@ -10,4 +10,6 @@ subprocess.run([sys.executable, '-B', 'bear_downloader.py', '--self-test', str(r
                cwd=root/'DownloadBackend', check=True)
 exe = root/'dist/BearLibrary.exe'
 if exe.exists():
+    subprocess.run([str(exe), '--client-policy-test', str(root/'obj/client-policy-tests')], check=True)
+    subprocess.run([str(exe), '--update-test', str(root/'obj/update-tests')], check=True)
     subprocess.run([str(exe), '--workflow-test', str(root/'obj/workflow-tests')], check=True)

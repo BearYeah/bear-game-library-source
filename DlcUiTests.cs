@@ -7,7 +7,7 @@ namespace NovaLibrary;
 
 public partial class MainWindow {
  static MainWindow CreateDlcFixture(string folder){
-  var state=new LibraryState{CatalogRevision=1,Settings=new(){Motion=false,AutoCheckUpdates=false,AutoDownloadUpdates=false}};
+  var state=new LibraryState{CatalogRevision=1,Settings=new(){Motion=false,AutoCheckUpdates=false}};
   state.Games.Add(new(){AppId=281990,Name="Stellaris · 群星",Enabled=true,SourceId=90});
   state.Games.AddRange(Enumerable.Range(0,350).Select(n=>new GameItem{AppId=(uint)(600000+n),Name=n==0?"Utopia · 乌托邦":$"群星扩展内容 {n:000}",Kind="dlc",ParentId=281990,Enabled=true,SourceId=(uint)(500000+n)}));
   state.Games.Add(new(){AppId=900001,Name="尚未识别所属游戏的 DLC",Kind="dlc",Enabled=true,SourceId=700001});

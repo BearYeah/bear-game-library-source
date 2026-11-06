@@ -8,4 +8,5 @@ subprocess.run([sys.executable, '-m', 'PyInstaller', '--noconfirm', '--clean', '
                 '--name', 'BearDownloader', '--distpath', str(root/'DownloadAssets'),
                 '--workpath', str(root/'obj/worker-build'), '--specpath', str(root/'obj'),
                 '--collect-all', 'zstandard', '--collect-all', 'cryptography',
+                '--hidden-import', 'client_status',
                 str(root/'DownloadBackend/bear_downloader.py')], cwd=root, check=True)

@@ -50,7 +50,6 @@ public class Settings {
  public bool DownloadUseProxy {get;set;}=false;
  public bool Motion {get;set;}=true;
  public bool AutoCheckUpdates {get;set;}=false;
- public bool AutoDownloadUpdates {get;set;}=false;
 }
 public class LibraryState {
  public Settings Settings {get;set;}=new();

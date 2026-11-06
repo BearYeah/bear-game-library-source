@@ -602,7 +602,12 @@ def main():
     parser.add_argument("--job")
     parser.add_argument("--self-test")
     parser.add_argument("--plan-only", action="store_true")
+    parser.add_argument("--client-status", action="store_true")
+    parser.add_argument("--status-file")
     args = parser.parse_args()
+    if args.client_status:
+        import client_status
+        return client_status.run(args.status_file)
     if args.self_test:
         import download_tests
         return download_tests.run(args.self_test)

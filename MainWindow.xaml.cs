@@ -15,28 +15,28 @@ public partial class MainWindow : Window {
  readonly Dictionary<uint,GameItem> missingDlcParents=[];
  string view="library",libraryQuery="",onlineQuery="";bool busy,switchingQuery,steamOperation;readonly bool preview;
  readonly List<GameItem> searchResults=[];readonly SteamLifecycle steamLifecycle;
- readonly CancellationTokenSource updateLifetime=new();bool updateBusy,preparingUpdate,applyingUpdate,installUpdateRequested;PendingUpdate? pendingUpdate;SignedRelease? availableUpdate;
+ readonly CancellationTokenSource updateLifetime=new();bool updateBusy;ClientUpdateInfo? availableUpdate;
  public MainWindow(Storage storage,LibraryState library,bool preview=false){
   this.storage=storage;this.library=library;this.preview=preview;patch=new(storage);steamLifecycle=new();
   store=new(storage,library.Settings);InitializeComponent();Cards.ItemsSource=visible;PoolGrid.ItemsSource=library.Pool;DownloadTasks.ItemsSource=downloads;
   SteamPathBox.Text=library.Settings.SteamPath;ProxyBox.Text=library.Settings.Proxy;CacheLimitBox.Text=library.Settings.CoverLimitMb.ToString();MotionBox.IsChecked=library.Settings.Motion;
   ModeBox.SelectedIndex=library.Settings.Mode=="families"?1:0;
-  AutoCheckUpdatesBox.IsChecked=library.Settings.AutoCheckUpdates;AutoDownloadUpdatesBox.IsChecked=library.Settings.AutoDownloadUpdates;
+  AutoCheckUpdatesBox.IsChecked=library.Settings.AutoCheckUpdates;
   LocalSniBox.IsChecked=library.Settings.LocalSni;
   VersionLabel.Text=$"by lostlybear    //    DESKTOP {UpdateTrust.Current.ToString(3)} · 测试候选";
   if(preview)PreviewLabel.Text="界面预览 · 测试目录";
-  Loaded+=async(_,_)=>{Refresh();Animate();if(!preview){Storage.TrimDownloadConfigBackups(library.Settings.SteamPath);UpdateInstaller.Cleanup(storage);await CheckCompatibilityOnLaunch();ResumeDownloadedUpdate();if(library.Settings.AutoCheckUpdates&&pendingUpdate==null)_=CheckAppUpdates(true);if(library.Games.Count>0)_=WarmCovers(library.Games.ToList(),network.Token);}};
+  Loaded+=async(_,_)=>{Refresh();Animate();if(!preview){Storage.TrimDownloadConfigBackups(library.Settings.SteamPath);await CheckCompatibilityOnLaunch();if(library.Settings.AutoCheckUpdates)_=CheckAppUpdates(true);if(library.Games.Count>0)_=WarmCovers(library.Games.ToList(),network.Token);}};
   Closing+=AppClosing;
   Closed+=(_,_)=>{updateLifetime.Cancel();network.Cancel();detailWork.Cancel();store.Dispose();};
  }
  void Notify(string message,bool error=false){StatusLabel.Text=message;StatusLabel.ToolTip=message;StatusLabel.Foreground=new SolidColorBrush(error?Color.FromRgb(245,164,177):Color.FromRgb(160,203,202));}
  async Task Action(Func<Task> work){
   if(busy){Notify("当前操作尚未结束，请稍候。");return;}
-  busy=true;BusyBar.Visibility=Visibility.Visible;SetEditing(false);
+  busy=true;BusyBar.Visibility=Visibility.Visible;SetEditing(false);var completion=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);policyOperation=completion;
   try{await work();}
   catch(OperationCanceledException){Notify("查询已取消或超时，可重试，或在设置里检查代理。",true);NetworkState.Text="查询超时";}
   catch(Exception e){Notify(Friendly(e),true);}
-  finally{busy=false;BusyBar.Visibility=Visibility.Collapsed;SetEditing(true);RefreshStatus();}
+  finally{busy=false;BusyBar.Visibility=Visibility.Collapsed;SetEditing(true);policyOperation=null;completion.TrySetResult();RefreshStatus();}
  }
  void SetEditing(bool enabled){CardsPanel.IsEnabled=enabled;PoolPanel.IsEnabled=enabled;SettingsPanel.IsEnabled=enabled;DetailPanel.IsEnabled=enabled;SearchBar.IsEnabled=enabled;ConfigActions.IsEnabled=enabled;}
  static string Friendly(Exception e){
@@ -281,7 +281,7 @@ public partial class MainWindow : Window {
  void BrowseSteam(object sender,RoutedEventArgs e){var dialog=new OpenFolderDialog{Title="选择含 steam.exe 的目录"};if(dialog.ShowDialog(this)==true)SteamPathBox.Text=dialog.FolderName;}
  void ReadSettings(){
   if(!int.TryParse(CacheLimitBox.Text,out var limit)||limit<10||limit>1024)throw new InvalidOperationException("封面缓存上限请输入 10 至 1024 MB。");
-  var settings=new Settings{SteamPath=SteamPathBox.Text.Trim(),Mode=(ModeBox.SelectedItem as ComboBoxItem)?.Tag?.ToString()??"families",Proxy=ProxyBox.Text.Trim(),LocalSni=LocalSniBox.IsChecked==true,CoverLimitMb=limit,DownloadLibrary=library.Settings.DownloadLibrary,DownloadLanguage=library.Settings.DownloadLanguage,Motion=MotionBox.IsChecked==true,AutoCheckUpdates=AutoCheckUpdatesBox.IsChecked==true,AutoDownloadUpdates=AutoDownloadUpdatesBox.IsChecked==true};
+  var settings=new Settings{SteamPath=SteamPathBox.Text.Trim(),Mode=(ModeBox.SelectedItem as ComboBoxItem)?.Tag?.ToString()??"families",Proxy=ProxyBox.Text.Trim(),LocalSni=LocalSniBox.IsChecked==true,CoverLimitMb=limit,DownloadLibrary=library.Settings.DownloadLibrary,DownloadLanguage=library.Settings.DownloadLanguage,Motion=MotionBox.IsChecked==true,AutoCheckUpdates=AutoCheckUpdatesBox.IsChecked==true};
   if(settings.SteamPath.Length>0)settings.SteamPath=PatchService.ValidateSteam(settings.SteamPath);
   var fresh=new SteamStore(storage,settings);network.Cancel();detailWork.Cancel();network=new();store.Dispose();store=fresh;library.Settings=settings;foreach(var window in downloadWindows.Values)window.UpdateSettings(settings);SaveLocal();storage.Evict(limit);Animate();
  }
@@ -322,32 +322,24 @@ public partial class MainWindow : Window {
    await Task.WhenAll(downloadWindows.Values.ToArray().Select(w=>w.StopForExit()));
    stoppingDownloads=false;Close();return;
   }
-  if(applyingUpdate||pendingUpdate==null||AutoDownloadUpdatesBox.IsChecked!=true&&!installUpdateRequested)return;e.Cancel=true;if(preparingUpdate)return;preparingUpdate=true;
-  try{SaveLocal();UpdateState.Text="正在准备安装更新，请稍候…";await UpdateInstaller.Launch(storage,pendingUpdate);applyingUpdate=true;Close();}
-  catch(Exception ex){UpdateState.Text="更新未安装，原版本已保留。";Notify(ex.Message,true);pendingUpdate=null;ApplyUpdateButton.IsEnabled=false;}
-  finally{preparingUpdate=false;}
  }
  async Task CheckAppUpdates(bool automatic){
-  if(preview||updateBusy||pendingUpdate!=null)return;updateBusy=true;CheckUpdateButton.IsEnabled=false;DownloadUpdateButton.IsEnabled=false;
+  if(preview||updateBusy)return;updateBusy=true;CheckUpdateButton.IsEnabled=false;OpenUpdatePageButton.IsEnabled=false;
   try{
-   UpdateState.Text="正在检查 GitHub 发布版本…";var update=await new UpdateService(storage,library.Settings).Check(updateLifetime.Token);
-   if(update==null){UpdateState.Text=$"当前为最新版本 {UpdateTrust.Current.ToString(3)}";return;}
-   availableUpdate=update.Value.Envelope;UpdateState.Text="发现新版本 "+update.Value.Release.Version;DownloadUpdateButton.IsEnabled=true;
-   if(library.Settings.AutoDownloadUpdates)await DownloadAvailableUpdate();else if(!automatic)Notify("发现新版本，可点击下载更新。");
+   UpdateState.Text="正在检查新版本…";availableUpdate=await new UpdateService(storage,library.Settings).Check(updateLifetime.Token);
+   if(availableUpdate==null){UpdateState.Text=$"当前为最新版本 {UpdateTrust.Current.ToString(3)}";return;}
+   UpdateState.Text="发现新版本 "+availableUpdate.Version+" · 蓝奏云更新";
+   PromptUpdatePage();
   }catch(OperationCanceledException){}catch(Exception ex){UpdateState.Text="更新检查暂不可用，可稍后重试。";if(!automatic)Notify(ex.Message,true);}
-  finally{updateBusy=false;CheckUpdateButton.IsEnabled=true;DownloadUpdateButton.IsEnabled=availableUpdate!=null&&pendingUpdate==null;}
+  finally{updateBusy=false;CheckUpdateButton.IsEnabled=true;OpenUpdatePageButton.IsEnabled=availableUpdate!=null;}
  }
- async Task DownloadAvailableUpdate(){
-  if(availableUpdate==null||pendingUpdate!=null)return;DownloadUpdateButton.IsEnabled=false;UpdateState.Text="正在下载更新，期间可以继续使用游戏库…";
-  pendingUpdate=await new UpdateService(storage,library.Settings).Stage(availableUpdate,updateLifetime.Token);
-  UpdateState.Text="版本 "+pendingUpdate.Release.Version+" 已就绪。"+(library.Settings.AutoDownloadUpdates?"退出时自动安装。":"可点击安装已下载版本。");ApplyUpdateButton.IsEnabled=true;Notify(library.Settings.AutoDownloadUpdates?"更新已下载并通过签名与文件校验；关闭 Bear 时安装，或点击“安装已下载版本”。":"更新已下载并通过签名与文件校验，可点击“安装已下载版本”。");
+ void PromptUpdatePage(){
+  if(availableUpdate==null)return;
+  UpdatePromptFlow.TryOpen(availableUpdate,message=>MessageBox.Show(this,message,"Bear游戏库 · 发现新版本",MessageBoxButton.YesNo,MessageBoxImage.Information,MessageBoxResult.No)==MessageBoxResult.Yes,OpenUrl);
  }
  async void CheckUpdateClick(object sender,RoutedEventArgs e){try{ReadSettings();await CheckAppUpdates(false);}catch(Exception ex){Notify(ex.Message,true);}}
- async void DownloadUpdateClick(object sender,RoutedEventArgs e){if(updateBusy)return;updateBusy=true;try{await DownloadAvailableUpdate();}catch(OperationCanceledException){}catch(Exception ex){UpdateState.Text="更新下载未完成，请重试。";Notify(ex.Message,true);}finally{updateBusy=false;DownloadUpdateButton.IsEnabled=availableUpdate!=null&&pendingUpdate==null;}}
- void ApplyUpdateClick(object sender,RoutedEventArgs e){if(pendingUpdate!=null){installUpdateRequested=true;Close();}}
- void UpdatePreferencesChanged(object sender,RoutedEventArgs e){library.Settings.AutoCheckUpdates=AutoCheckUpdatesBox.IsChecked==true;library.Settings.AutoDownloadUpdates=AutoDownloadUpdatesBox.IsChecked==true;try{SaveLocal();}catch(Exception ex){Notify(ex.Message,true);}}
- public void UpdateLaunchSucceeded(){UpdateState.Text="已更新至 "+UpdateTrust.Current.ToString(3);Notify("更新完成，游戏库和设置已保留。");}
- void ResumeDownloadedUpdate(){try{pendingUpdate=new UpdateService(storage,library.Settings).Ready();if(pendingUpdate!=null){UpdateState.Text="版本 "+pendingUpdate.Release.Version+" 已就绪。"+(library.Settings.AutoDownloadUpdates?"退出时自动安装。":"可点击安装已下载版本。");ApplyUpdateButton.IsEnabled=true;}}catch(Exception ex){UpdateState.Text="之前的更新未就绪，可重新检查下载。";Notify(ex.Message,true);}}
+ void OpenUpdatePageClick(object sender,RoutedEventArgs e)=>PromptUpdatePage();
+ void UpdatePreferencesChanged(object sender,RoutedEventArgs e){library.Settings.AutoCheckUpdates=AutoCheckUpdatesBox.IsChecked==true;try{SaveLocal();}catch(Exception ex){Notify(ex.Message,true);}}
  async Task CheckCompatibilityOnLaunch(){
   string? mode;
   try{mode=patch.InstalledMode(library.Settings.SteamPath);}catch{return;}
